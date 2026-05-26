@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     REDDIT_CLIENT_SECRET: str = ""
     REDDIT_USER_AGENT: str = "demand-radar/1.0"
 
-    ANTHROPIC_API_KEY: str = ""
+    LLM_API_KEY: str = ""
+    LLM_API_BASE: str = "https://api.openai.com/v1"
+    LLM_MODEL: str = "gpt-4o-mini"
 
     REPORT_GENERATION_HOUR: int = 8
 

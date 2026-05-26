@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
-from anthropic import Anthropic
 from loguru import logger
+from openai import OpenAI
 
 from app.config import settings
 
@@ -56,27 +55,26 @@ def _build_batch_prompt(posts: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
-def _analyze_with_claude(posts_batch: list[dict]) -> list[dict]:
-    if not settings.ANTHROPIC_API_KEY:
-        logger.warning("ANTHROPIC_API_KEY not configured, skipping AI analysis")
+def _analyze_with_llm(posts_batch: list[dict]) -> list[dict]:
+    if not settings.LLM_API_KEY:
+        logger.warning("LLM_API_KEY not configured, skipping AI analysis")
         return []
 
-    client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    client = OpenAI(api_key=settings.LLM_API_KEY, base_url=settings.LLM_API_BASE)
     user_content = _build_batch_prompt(posts_batch)
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"<posts>\n{user_content}\n</posts>\n\nExtract pain points from these posts."},
-    ]
-
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = client.chat.completions.create(
+        model=settings.LLM_MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"<posts>\n{user_content}\n</posts>\n\nExtract pain points from these posts."},
+        ],
         max_tokens=2048,
         temperature=0.3,
-        messages=messages,
+        response_format={"type": "json_object"},
     )
 
-    text = response.content[0].text if isinstance(response.content, list) else response.content
+    text = response.choices[0].message.content
     text = text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("\n```", 1)[0]
@@ -85,7 +83,7 @@ def _analyze_with_claude(posts_batch: list[dict]) -> list[dict]:
         result = json.loads(text)
         return result.get("pain_points", [])
     except json.JSONDecodeError:
-        logger.error("Failed to parse Claude response as JSON: {}", text[:500])
+        logger.error("Failed to parse LLM response as JSON: {}", text[:500])
         return []
 
 
@@ -98,7 +96,7 @@ def analyze_posts(posts: list[dict]) -> list[dict]:
         batch = posts[i : i + batch_size]
         logger.info("Analyzing batch {}/{} ({} posts)", i // batch_size + 1, (len(posts) - 1) // batch_size + 1, len(batch))
         try:
-            result = _analyze_with_claude(batch)
+            result = _analyze_with_llm(batch)
             for r in result:
                 r["source_indices"] = list(range(i, i + len(batch)))
             pain_points.extend(result)
