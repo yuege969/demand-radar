@@ -10,13 +10,16 @@ scheduler = BackgroundScheduler()
 
 def _scheduled_crawl() -> None:
     from app.services.reddit_crawler import crawl_subreddits
+    from app.services.hn_crawler import crawl_hn
     from app.services.pipeline import process_pending_posts
     from app.services.report_generator import generate_daily_report
 
     logger.info("Scheduled crawl job starting")
     try:
-        crawl_result = crawl_subreddits()
-        if crawl_result["posts_fetched"] > 0:
+        reddit_result = crawl_subreddits()
+        hn_result = crawl_hn()
+        total_new = reddit_result["posts_fetched"] + hn_result["posts_fetched"]
+        if total_new > 0:
             pipeline_result = process_pending_posts()
             logger.info("Pipeline result: {}", pipeline_result)
         generate_daily_report()

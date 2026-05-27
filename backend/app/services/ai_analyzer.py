@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from loguru import logger
 from openai import OpenAI
@@ -55,6 +56,27 @@ def _build_batch_prompt(posts: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _strip_thinking(text: str) -> str:
+    """Remove `` blocks and markdown fences from model output."""
+    text = text.strip()
+    text = re.sub(r"</?think>", "", text)
+    text = re.sub(r"</?thinking>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"```(?:json)?\s*", "", text)
+    return text.strip()
+
+
+def _extract_json(text: str) -> dict | None:
+    """Extract the outermost JSON object from text that may contain extra content."""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or start >= end:
+        return None
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
 def _analyze_with_llm(posts_batch: list[dict]) -> list[dict]:
     if not settings.LLM_API_KEY:
         logger.warning("LLM_API_KEY not configured, skipping AI analysis")
@@ -69,22 +91,17 @@ def _analyze_with_llm(posts_batch: list[dict]) -> list[dict]:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"<posts>\n{user_content}\n</posts>\n\nExtract pain points from these posts."},
         ],
-        max_tokens=2048,
+        max_tokens=16384,
         temperature=0.3,
-        response_format={"type": "json_object"},
     )
 
     text = response.choices[0].message.content
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("\n```", 1)[0]
-
-    try:
-        result = json.loads(text)
-        return result.get("pain_points", [])
-    except json.JSONDecodeError:
+    text = _strip_thinking(text)
+    result = _extract_json(text)
+    if result is None:
         logger.error("Failed to parse LLM response as JSON: {}", text[:500])
         return []
+    return result.get("pain_points", [])
 
 
 def analyze_posts(posts: list[dict]) -> list[dict]:

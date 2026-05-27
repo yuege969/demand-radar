@@ -34,20 +34,23 @@ def trigger_crawl(
     _crawl_state["is_running"] = True
     try:
         from app.services.reddit_crawler import crawl_subreddits
+        from app.services.hn_crawler import crawl_hn
         from app.services.pipeline import process_pending_posts
         from app.services.report_generator import generate_daily_report
 
         subreddits = body.subreddits if body else None
-        crawl_result = crawl_subreddits(subreddits)
+        reddit_result = crawl_subreddits(subreddits)
+        hn_result = crawl_hn()
+        total_new = reddit_result["posts_fetched"] + hn_result["posts_fetched"]
 
-        pipeline_result = process_pending_posts() if crawl_result["posts_fetched"] > 0 else {"new_pain_points": 0}
+        pipeline_result = process_pending_posts() if total_new > 0 else {"new_pain_points": 0}
 
         report_result = generate_daily_report()
 
         now = datetime.now(timezone.utc).isoformat()
         _crawl_state["last_run_at"] = now
         full_result = {
-            "crawl": crawl_result,
+            "crawl": {"reddit": reddit_result, "hacker_news": hn_result, "total_posts": total_new},
             "pipeline": pipeline_result,
             "report": report_result,
         }

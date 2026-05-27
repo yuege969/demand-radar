@@ -54,7 +54,10 @@ def process_pending_posts() -> dict:
             for pp, emb in zip(existing_pps, encodings):
                 existing_embeddings.append((pp.id, emb))
 
-        new_embeddings = encode_texts([e.get("summary", "") for e in extracted])
+        if existing_embeddings:
+            new_embeddings = encode_texts([e.get("summary", "") for e in extracted])
+        else:
+            new_embeddings = [[] for _ in extracted]
 
         new_count = 0
         for i, pp_data in enumerate(extracted):

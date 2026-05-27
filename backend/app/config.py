@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     LLM_API_BASE: str = "https://api.openai.com/v1"
     LLM_MODEL: str = "gpt-4o-mini"
 
+    HTTP_PROXY: str = ""
+
     REPORT_GENERATION_HOUR: int = 8
 
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
