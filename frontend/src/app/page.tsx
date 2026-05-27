@@ -27,7 +27,7 @@ async function fetchFromAPI<T>(path: string): Promise<T | null> {
 
 export default async function HomePage() {
   const [ppResult, reportResult] = await Promise.all([
-    fetchFromAPI<{ data: PainPoint[] }>(
+    fetchFromAPI<{ data: PainPoint[]; meta: { total: number } }>(
       "/pain-points?per_page=10&sort_by=pain_score"
     ),
     fetchFromAPI<{ data: { stats: { new_pain_points: number } } }>(
@@ -37,7 +37,7 @@ export default async function HomePage() {
 
   const painPoints = ppResult?.data ?? [];
 
-  const total = painPoints.length;
+  const total = ppResult?.meta?.total ?? painPoints.length;
   const today =
     reportResult?.data?.stats?.new_pain_points ?? 0;
 
