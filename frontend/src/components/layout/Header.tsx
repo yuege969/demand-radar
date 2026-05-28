@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/trends", label: "需求趋势" },
   { href: "/categories", label: "行业分类" },
   { href: "/report", label: "日报" },
+  { href: "/admin", label: "管理" },
 ];
 
 export default function Header() {

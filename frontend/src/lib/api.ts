@@ -76,6 +76,25 @@ export interface TrendPoint {
   new_pain_points: number;
 }
 
+export interface StepStatus {
+  step: string;
+  label: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  message: string | null;
+}
+
+export interface CrawlStatus {
+  is_running: boolean;
+  last_run_at: string | null;
+  last_result: string | null;
+  steps: StepStatus[];
+  model_ready: boolean;
+}
+
 async function fetchApi<T>(endpoint: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
   const url = new URL(`${API_URL}${endpoint}`);
   if (params) {
@@ -116,6 +135,19 @@ export async function getPosts(params?: Record<string, string>): Promise<ApiResp
   return fetchApi<Post[]>("/posts", params);
 }
 
-export async function getCrawlStatus(): Promise<ApiResponse<{ is_running: boolean; last_run_at: string | null; last_result: string | null }>> {
-  return fetchApi("/crawl/status");
+export async function getCrawlStatus(): Promise<ApiResponse<CrawlStatus>> {
+  return fetchApi<CrawlStatus>("/crawl/status");
+}
+
+export async function triggerCrawl(adminToken: string, startStep?: string): Promise<ApiResponse<unknown>> {
+  const url = `${API_URL}/crawl/trigger`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Admin-Token": adminToken },
+    body: JSON.stringify({ start_step: startStep || "crawl_reddit" }),
+  });
+  if (!res.ok) {
+    return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };
+  }
+  return res.json();
 }

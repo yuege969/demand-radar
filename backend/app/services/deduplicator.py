@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
+
 import numpy as np
 from loguru import logger
 
 from app.config import settings
 
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 _embedding_model = None
 
@@ -13,9 +18,23 @@ def _get_model():
     global _embedding_model
     if _embedding_model is None:
         from sentence_transformers import SentenceTransformer
+
         _embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
         logger.info("Loaded embedding model: {}", settings.EMBEDDING_MODEL)
     return _embedding_model
+
+
+def preload_model() -> None:
+    try:
+        _get_model()
+        logger.info("Embedding model preloaded and ready")
+    except Exception as e:
+        logger.error("Failed to preload embedding model: {}", e)
+        logger.warning("Pipeline analysis step will be unavailable until model loads")
+
+
+def is_model_ready() -> bool:
+    return _embedding_model is not None
 
 
 def compute_similarity(embedding_a: list[float], embedding_b: list[float]) -> float:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -15,6 +16,9 @@ from app.scheduler import start_scheduler, shutdown_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Demand Radar backend...")
+    from app.services.deduplicator import preload_model
+
+    await asyncio.to_thread(preload_model)
     start_scheduler()
     yield
     shutdown_scheduler()
@@ -27,7 +31,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS.split(","),
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
