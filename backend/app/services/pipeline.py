@@ -61,13 +61,26 @@ def process_pending_posts() -> dict:
 
         new_count = 0
         for i, pp_data in enumerate(extracted):
+            src_indices = pp_data.get("source_indices", [])
+            if src_indices and isinstance(src_indices, list):
+                post_ids_for_pp = list({
+                    posts_data[idx]["id"]
+                    for idx in src_indices
+                    if 0 <= idx < len(posts_data)
+                })
+            else:
+                post_ids_for_pp = [p.id for p in pending]
+
+            if not post_ids_for_pp:
+                post_ids_for_pp = [p.id for p in pending]
+
             best_id, best_score = find_most_similar(new_embeddings[i], existing_embeddings) if existing_embeddings else (None, -1.0)
 
             if best_id and is_duplicate(best_score):
-                _merge_pain_point(db, best_id, pending, pp_data)
+                _merge_pain_point(db, best_id, pending, pp_data, post_ids_for_pp)
                 logger.debug("Merged duplicate pain point: '{}' (score={:.3f})", pp_data["title"], best_score)
             else:
-                _create_pain_point(db, pp_data, [p.id for p in pending])
+                _create_pain_point(db, pp_data, post_ids_for_pp)
                 new_count += 1
 
         for p in pending:
@@ -135,12 +148,11 @@ def _create_pain_point(db, pp_data: dict, post_ids: list[int]) -> PainPoint:
     return pp
 
 
-def _merge_pain_point(db, pp_id: int, posts: list, pp_data: dict) -> None:
+def _merge_pain_point(db, pp_id: int, posts: list, pp_data: dict, new_post_ids: list[int]) -> None:
     from app.models.pain_point import PainPoint
     pp = db.query(PainPoint).filter(PainPoint.id == pp_id).first()
     if not pp:
         return
     existing_posts = json.loads(pp.source_post_ids or "[]")
-    new_posts = [p.id for p in posts]
-    pp.source_post_ids = json.dumps(list(set(existing_posts + new_posts)))
+    pp.source_post_ids = json.dumps(list(set(existing_posts + new_post_ids)))
     pp.updated_at = datetime.now(timezone.utc).isoformat()

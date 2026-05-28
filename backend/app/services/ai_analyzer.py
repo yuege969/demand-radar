@@ -33,10 +33,13 @@ Output ONLY valid JSON (no markdown, no backticks) in this exact structure:
       "is_saas_idea": true/false,
       "is_plugin_idea": true/false,
       "business_angle": "brief monetization angle",
-      "keywords": ["keyword1", "keyword2"]
+      "keywords": ["keyword1", "keyword2"],
+      "source_post_indices": [0, 2]
     }
   ]
 }
+
+For each pain point, set "source_post_indices" to the <post id="X"> values of the posts it was derived from. If it came from multiple posts, list all that apply. If it came from all posts, list all indices.
 
 If no pain points are found, return {"pain_points": []}."""
 
@@ -115,7 +118,16 @@ def analyze_posts(posts: list[dict]) -> list[dict]:
         try:
             result = _analyze_with_llm(batch)
             for r in result:
-                r["source_indices"] = list(range(i, i + len(batch)))
+                raw_indices = r.pop("source_post_indices", None)
+                if not isinstance(raw_indices, list):
+                    raw_indices = []
+                valid_local = [
+                    idx for idx in raw_indices
+                    if isinstance(idx, int) and 0 <= idx < len(batch)
+                ]
+                if not valid_local:
+                    valid_local = list(range(len(batch)))
+                r["source_indices"] = [idx + i for idx in valid_local]
             pain_points.extend(result)
         except Exception as e:
             logger.error("AI analysis failed for batch {}: {}", i // batch_size, e)
