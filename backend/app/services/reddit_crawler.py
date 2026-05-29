@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.http_client import build_http_client
 from app.models.post import Post
 from app.models.comment import Comment
 
@@ -21,8 +20,40 @@ DEFAULT_SUBREDDITS = [
     "sideproject", "devops", "webdev", "productivity",
 ]
 
-# Public Reddit API requires a descriptive User-Agent (not a browser default)
-_PUBLIC_HEADERS = {"User-Agent": settings.REDDIT_USER_AGENT}
+def _build_public_session() -> httpx.Client:
+    """Build an httpx.Client with browser-like headers and cookie persistence."""
+    proxy = None
+    for key in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        if val := __import__("os").environ.get(key):
+            proxy = val
+            break
+    if not proxy:
+        proxy = settings.HTTP_PROXY or None
+
+    client = httpx.Client(
+        proxy=proxy,
+        trust_env=False,
+        timeout=30.0,
+        follow_redirects=True,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    )
+    # Prime cookies by visiting the homepage first
+    try:
+        client.get("https://old.reddit.com/", timeout=10.0)
+    except Exception:
+        pass
+    return client
 
 _keywords: Optional[dict[str, list[str]]] = None
 
@@ -126,20 +157,21 @@ def _crawl_subreddit_public(
     subreddit_name: str,
     db: Session,
     keywords: dict[str, list[str]],
+    client: httpx.Client,
     post_limit: int = 25,
     comment_limit: int = 10,
 ) -> tuple[int, int]:
-    """Crawl a subreddit using Reddit's public JSON API — no OAuth required."""
+    """Crawl a subreddit using Reddit's public JSON API with browser-like session."""
     posts_fetched = 0
     comments_fetched = 0
 
-    with build_http_client(headers=_PUBLIC_HEADERS, timeout=30.0) as client:
-        resp = client.get(
-            f"https://www.reddit.com/r/{subreddit_name}/hot.json",
-            params={"limit": post_limit},
-        )
-        resp.raise_for_status()
-        children = resp.json().get("data", {}).get("children", [])
+    resp = client.get(
+        f"https://old.reddit.com/r/{subreddit_name}/hot.json",
+        params={"limit": post_limit},
+        headers={"Accept": "application/json"},
+    )
+    resp.raise_for_status()
+    children = resp.json().get("data", {}).get("children", [])
 
     for child in children:
         pd = child.get("data", {})
@@ -173,16 +205,15 @@ def _crawl_subreddit_public(
         db.flush()
         posts_fetched += 1
 
-        # Fetch comments (polite rate-limit: 1 req/s recommended by Reddit)
         time.sleep(1.0)
         try:
-            with build_http_client(headers=_PUBLIC_HEADERS, timeout=30.0) as client:
-                cr = client.get(
-                    f"https://www.reddit.com/r/{subreddit_name}/comments/{post_id}.json",
-                    params={"limit": comment_limit, "depth": 1},
-                )
-                cr.raise_for_status()
-                comment_listing_data = cr.json()
+            cr = client.get(
+                f"https://old.reddit.com/r/{subreddit_name}/comments/{post_id}.json",
+                params={"limit": comment_limit, "depth": 1},
+                headers={"Accept": "application/json"},
+            )
+            cr.raise_for_status()
+            comment_listing_data = cr.json()
             if len(comment_listing_data) > 1:
                 for c in comment_listing_data[1].get("data", {}).get("children", [])[:comment_limit]:
                     cd = c.get("data", {})
@@ -218,32 +249,35 @@ def crawl_subreddits(subreddits: Optional[list[str]] = None) -> dict:
     total_comments = 0
     errors = 0
 
-    # Use PRAW (OAuth) when credentials are available; fall back to public JSON API otherwise
     use_praw = bool(settings.REDDIT_CLIENT_ID)
     reddit = None
+    public_session = None
+
     if use_praw:
         try:
             reddit = _build_reddit_client()
         except RuntimeError as e:
-            logger.warning("PRAW init failed, falling back to public JSON API: {}", e)
+            logger.warning("PRAW init failed, falling back to public session: {}", e)
             use_praw = False
-    else:
-        logger.info("REDDIT_CLIENT_ID not set — using Reddit public JSON API (no auth required)")
 
-    for sr_name in target:
-        try:
-            if use_praw and reddit:
-                p, c = _crawl_subreddit(reddit, sr_name, db, keywords)
-            else:
-                p, c = _crawl_subreddit_public(sr_name, db, keywords)
-            total_posts += p
-            total_comments += c
-            logger.info("r/{}: {} new posts, {} new comments", sr_name, p, c)
-        except Exception as e:
-            errors += 1
-            logger.error("Failed to crawl r/{}: {}", sr_name, e)
+    if not use_praw:
+        logger.info("REDDIT_CLIENT_ID not set — using anonymous browser session")
+        public_session = _build_public_session()
 
     try:
+        for sr_name in target:
+            try:
+                if reddit:
+                    p, c = _crawl_subreddit(reddit, sr_name, db, keywords)
+                else:
+                    p, c = _crawl_subreddit_public(sr_name, db, keywords, public_session)
+                total_posts += p
+                total_comments += c
+                logger.info("r/{}: {} new posts, {} new comments", sr_name, p, c)
+            except Exception as e:
+                errors += 1
+                logger.error("Failed to crawl r/{}: {}", sr_name, e)
+
         db.commit()
         result = {"posts_fetched": total_posts, "comments_fetched": total_comments, "errors": errors}
         logger.info("Reddit crawl complete: {}", result)
@@ -252,6 +286,8 @@ def crawl_subreddits(subreddits: Optional[list[str]] = None) -> dict:
         db.rollback()
         raise
     finally:
+        if public_session:
+            public_session.close()
         db.close()
 
 
