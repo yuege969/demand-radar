@@ -15,90 +15,106 @@ from app.services.pain_scorer import calculate_pain_score
 
 
 def process_pending_posts() -> dict:
-    """Main pipeline: fetch pending posts, run AI analysis, dedup, and save pain points."""
+    """Process ALL pending posts in batches, looping until none remain."""
     from app.models.post import Post
 
-    db = SessionLocal()
-    try:
-        pending = db.query(Post).filter(Post.processed == 0).limit(settings.MAX_POSTS_PER_BATCH).all()
-        if not pending:
-            logger.info("No pending posts to process")
-            return {"processed": 0, "new_pain_points": 0}
+    total_processed = 0
+    total_new_pain_points = 0
 
-        logger.info("Processing {} pending posts", len(pending))
+    while True:
+        db = SessionLocal()
+        try:
+            pending = db.query(Post).filter(Post.processed == 0).limit(settings.MAX_POSTS_PER_BATCH).all()
+            if not pending:
+                if total_processed == 0:
+                    logger.info("No pending posts to process")
+                break
 
-        posts_data = [
-            {
-                "id": p.id,
-                "title": p.title,
-                "body": p.body or "",
-                "subreddit": p.subreddit,
-                "score": p.score or 0,
-                "num_comments": p.num_comments or 0,
-            }
-            for p in pending
-        ]
+            logger.info("Processing batch: {} posts", len(pending))
 
-        extracted = analyze_posts(posts_data)
-        if not extracted:
+            posts_data = [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "body": p.body or "",
+                    "subreddit": p.subreddit,
+                    "score": p.score or 0,
+                    "num_comments": p.num_comments or 0,
+                }
+                for p in pending
+            ]
+
+            extracted = analyze_posts(posts_data)
+            if not extracted:
+                for p in pending:
+                    p.processed = 1
+                db.commit()
+                total_processed += len(pending)
+                continue
+
+            existing_pps = db.query(PainPoint).all()
+            existing_embeddings: list[tuple[int, list[float]]] = []
+            if existing_pps:
+                summaries = [pp.summary for pp in existing_pps]
+                encodings = encode_texts(summaries)
+                for pp, emb in zip(existing_pps, encodings):
+                    existing_embeddings.append((pp.id, emb))
+
+            if existing_embeddings:
+                new_embeddings = encode_texts([e.get("summary", "") for e in extracted])
+            else:
+                new_embeddings = [[] for _ in extracted]
+
+            batch_new_pps = 0
+            for i, pp_data in enumerate(extracted):
+                src_indices = pp_data.get("source_indices", [])
+                if src_indices and isinstance(src_indices, list):
+                    post_ids_for_pp = list({
+                        posts_data[idx]["id"]
+                        for idx in src_indices
+                        if 0 <= idx < len(posts_data)
+                    })
+                else:
+                    post_ids_for_pp = [p.id for p in pending]
+
+                if not post_ids_for_pp:
+                    post_ids_for_pp = [p.id for p in pending]
+
+                best_id, best_score = find_most_similar(
+                    new_embeddings[i], existing_embeddings
+                ) if existing_embeddings else (None, -1.0)
+
+                if best_id and is_duplicate(best_score):
+                    _merge_pain_point(db, best_id, pp_data, post_ids_for_pp)
+                else:
+                    _create_pain_point(db, pp_data, post_ids_for_pp)
+                    batch_new_pps += 1
+
             for p in pending:
                 p.processed = 1
+
             db.commit()
-            return {"processed": len(pending), "new_pain_points": 0}
+            total_processed += len(pending)
+            total_new_pain_points += batch_new_pps
 
-        existing_pps = db.query(PainPoint).all()
-        existing_embeddings: list[tuple[int, list[float]]] = []
-        if existing_pps:
-            summaries = [pp.summary for pp in existing_pps]
-            encodings = encode_texts(summaries)
-            for pp, emb in zip(existing_pps, encodings):
-                existing_embeddings.append((pp.id, emb))
+            logger.info("Batch complete: {} processed, {} new pain points",
+                        len(pending), batch_new_pps)
+        except Exception as e:
+            db.rollback()
+            logger.error("Pipeline batch failed: {}", e)
+            for p in db.query(Post).filter(Post.processed == 0).limit(
+                settings.MAX_POSTS_PER_BATCH
+            ).all():
+                p.processed = 2
+                p.error_message = str(e)[:500]
+            db.commit()
+            raise
+        finally:
+            db.close()
 
-        if existing_embeddings:
-            new_embeddings = encode_texts([e.get("summary", "") for e in extracted])
-        else:
-            new_embeddings = [[] for _ in extracted]
-
-        new_count = 0
-        for i, pp_data in enumerate(extracted):
-            src_indices = pp_data.get("source_indices", [])
-            if src_indices and isinstance(src_indices, list):
-                post_ids_for_pp = list({
-                    posts_data[idx]["id"]
-                    for idx in src_indices
-                    if 0 <= idx < len(posts_data)
-                })
-            else:
-                post_ids_for_pp = [p.id for p in pending]
-
-            if not post_ids_for_pp:
-                post_ids_for_pp = [p.id for p in pending]
-
-            best_id, best_score = find_most_similar(new_embeddings[i], existing_embeddings) if existing_embeddings else (None, -1.0)
-
-            if best_id and is_duplicate(best_score):
-                _merge_pain_point(db, best_id, pending, pp_data, post_ids_for_pp)
-                logger.debug("Merged duplicate pain point: '{}' (score={:.3f})", pp_data["title"], best_score)
-            else:
-                _create_pain_point(db, pp_data, post_ids_for_pp)
-                new_count += 1
-
-        for p in pending:
-            p.processed = 1
-
-        db.commit()
-        logger.info("Pipeline complete: {} posts processed, {} new pain points", len(pending), new_count)
-        return {"processed": len(pending), "new_pain_points": new_count}
-    except Exception as e:
-        db.rollback()
-        logger.error("Pipeline failed: {}", e)
-        for p in db.query(Post).filter(Post.processed == 0).limit(settings.MAX_POSTS_PER_BATCH).all():
-            p.processed = 2
-            p.error_message = str(e)[:500]
-        db.commit()
-        raise
-    finally:
-        db.close()
+    logger.info("Pipeline complete: {} posts processed, {} new pain points",
+                total_processed, total_new_pain_points)
+    return {"processed": total_processed, "new_pain_points": total_new_pain_points}
 
 
 def _create_pain_point(db, pp_data: dict, post_ids: list[int]) -> PainPoint:
@@ -148,8 +164,7 @@ def _create_pain_point(db, pp_data: dict, post_ids: list[int]) -> PainPoint:
     return pp
 
 
-def _merge_pain_point(db, pp_id: int, posts: list, pp_data: dict, new_post_ids: list[int]) -> None:
-    from app.models.pain_point import PainPoint
+def _merge_pain_point(db, pp_id: int, pp_data: dict, new_post_ids: list[int]) -> None:
     pp = db.query(PainPoint).filter(PainPoint.id == pp_id).first()
     if not pp:
         return
