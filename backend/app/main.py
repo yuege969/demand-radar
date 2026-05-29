@@ -16,6 +16,11 @@ from app.scheduler import start_scheduler, shutdown_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Demand Radar backend...")
+
+    from app.database import init_db
+
+    await asyncio.to_thread(init_db)
+
     from app.services.deduplicator import preload_model
 
     await asyncio.to_thread(preload_model)
