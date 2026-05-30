@@ -15,6 +15,16 @@ from app.schemas.pain_point import PainPointOut, PainPointDetail, PainScoreBreak
 router = APIRouter()
 
 
+def _parse_json_list(raw: str | None) -> list[str] | None:
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
     source_count = 0
     if pp.source_post_ids:
@@ -37,6 +47,13 @@ def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
         source_count=source_count,
         created_at=pp.created_at,
         updated_at=pp.updated_at,
+        is_individual_feasible=bool(pp.is_individual_feasible),
+        feasibility_reason=pp.feasibility_reason,
+        estimated_dev_time=pp.estimated_dev_time,
+        tech_stack_hints=_parse_json_list(pp.tech_stack_hints),
+        market_saturation=pp.market_saturation,
+        individual_score=pp.individual_score or 0.0,
+        opportunity_score=pp.opportunity_score or 0.0,
     )
 
 
@@ -46,7 +63,7 @@ def list_pain_points(
     per_page: int = Query(20, ge=1, le=100),
     category: str | None = None,
     industry: str | None = None,
-    sort_by: str = Query("pain_score", pattern="^(pain_score|created_at|updated_at)$"),
+    sort_by: str = Query("pain_score", pattern="^(pain_score|opportunity_score|created_at|updated_at)$"),
     search: str | None = None,
     db: Session = Depends(get_db),
 ):

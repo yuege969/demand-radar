@@ -12,22 +12,30 @@ function SearchContent() {
   const [inputValue, setInputValue] = useState(query);
   const [results, setResults] = useState<PainPoint[]>([]);
   const [loading, setLoading] = useState(false);
+  const [feasibleOnly, setFeasibleOnly] = useState(false);
 
-  const doSearch = useCallback((q: string) => {
+  const doSearch = useCallback((q: string, filterFeasible: boolean) => {
     if (!q.trim()) { setResults([]); return; }
     setLoading(true);
     searchAll(q, { per_page: "20" })
       .then((res) => {
         if (res.success && res.data) {
-          setResults(res.data as unknown as PainPoint[]);
+          let data = res.data as unknown as PainPoint[];
+          if (filterFeasible) {
+            data = data.filter((p) => p.is_individual_feasible);
+          }
+          setResults(data);
         }
       })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (query) { setInputValue(query); doSearch(query); }
-  }, [query, doSearch]);
+    if (query) {
+      setInputValue(query);
+      doSearch(query, feasibleOnly);
+    }
+  }, [query, doSearch, feasibleOnly]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +58,18 @@ function SearchContent() {
           搜索
         </button>
       </form>
+
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={feasibleOnly}
+            onChange={(e) => setFeasibleOnly(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-sm text-gray-600">仅显示个人开发者可做的机会</span>
+        </label>
+      </div>
 
       {loading ? (
         <div className="space-y-4">

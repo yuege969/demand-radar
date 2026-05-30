@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getPainPoint, type PainPointDetail } from "@/lib/api";
-import { formatDate, formatScore, scoreColor } from "@/lib/utils";
+import { formatDate, formatScore, scoreColor, toDisplayScore } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 
 export default function PainPointDetailPage() {
@@ -58,11 +58,42 @@ export default function PainPointDetailPage() {
       <header className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900">{data.title}</h1>
-          <span className={`shrink-0 text-3xl font-bold ${scoreColor(data.pain_score)}`}>
-            {formatScore(data.pain_score)}
-          </span>
+          <div className="shrink-0 text-right">
+            <span className={`text-3xl font-bold ${scoreColor(toDisplayScore(data.opportunity_score, data.pain_score))}`}>
+              {formatScore(toDisplayScore(data.opportunity_score, data.pain_score))}
+            </span>
+            {data.opportunity_score > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">机会分</p>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {data.is_individual_feasible ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              个人可做
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+              门槛较高
+            </span>
+          )}
+          {data.estimated_dev_time && (
+            <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700">
+              {data.estimated_dev_time}
+            </span>
+          )}
+          {data.market_saturation && (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              data.market_saturation === "green" ? "bg-blue-100 text-blue-700" :
+              data.market_saturation === "amber" ? "bg-yellow-100 text-yellow-700" :
+              "bg-red-100 text-red-700"
+            }`}>
+              {data.market_saturation === "green" ? "蓝海" : data.market_saturation === "amber" ? "中等" : "红海"}
+            </span>
+          )}
           {data.category && <Badge label={data.category} variant="category" />}
           {data.industry && <Badge label={data.industry} variant="industry" />}
           {data.is_saas_idea && <Badge label="SaaS 机会" variant="saas" />}
@@ -83,7 +114,8 @@ export default function PainPointDetailPage() {
 
       {breakdown && dimensions.length > 0 && (
         <section className="rounded-xl border border-gray-200 bg-white p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Pain Score 分解</h2>
+          <h2 className="font-semibold text-gray-900 mb-2">痛点强度分 ({breakdown.total_score.toFixed(1)})</h2>
+          <p className="text-xs text-gray-500 mb-4">机会分 = 痛点强度 &times; 0.4 + 个人可行性 &times; 0.6</p>
           <div className="space-y-3">
             {dimensions.map((d) => {
               const val = (breakdown as unknown as Record<string, number>)[d.key] ?? 0;
@@ -104,9 +136,6 @@ export default function PainPointDetailPage() {
                 </div>
               );
             })}
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-100 text-right text-sm text-gray-500">
-            总分 = {breakdown.total_score.toFixed(2)}
           </div>
         </section>
       )}
@@ -147,7 +176,9 @@ export default function PainPointDetailPage() {
                 className="flex items-center justify-between rounded-lg border border-gray-100 p-3 hover:bg-gray-50 transition-colors"
               >
                 <span className="text-sm text-gray-900">{r.title}</span>
-                <span className={`text-sm font-bold ${scoreColor(r.pain_score)}`}>{formatScore(r.pain_score)}</span>
+                <span className={`text-sm font-bold ${scoreColor(toDisplayScore(r.opportunity_score, r.pain_score))}`}>
+                  {formatScore(toDisplayScore(r.opportunity_score, r.pain_score))}
+                </span>
               </Link>
             ))}
           </div>

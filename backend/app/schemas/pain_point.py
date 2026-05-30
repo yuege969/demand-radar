@@ -20,6 +20,14 @@ class PainPointOut(BaseModel):
     source_count: int = 0
     created_at: str
     updated_at: str
+    # Individual developer feasibility fields
+    is_individual_feasible: bool = False
+    feasibility_reason: Optional[str] = None
+    estimated_dev_time: Optional[str] = None
+    tech_stack_hints: Optional[list[str]] = None
+    market_saturation: Optional[str] = None
+    individual_score: float = 0.0
+    opportunity_score: float = 0.0
 
     model_config = {"from_attributes": True}
 

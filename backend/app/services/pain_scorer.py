@@ -25,3 +25,10 @@ def calculate_pain_score(dimensions: dict) -> float:
         + dimensions.get("is_long_term", 0) * 0.05
     )
     return round(total, 2)
+
+
+def calculate_opportunity_score(pain_score: float, individual_score: float) -> float:
+    """Combine pain_score (0-10) + individual_score (0-1) into a 0-100 opportunity score."""
+    scaled_individual = individual_score * 10
+    raw = pain_score * 0.40 + scaled_individual * 0.60
+    return round(raw * 10, 1)

@@ -28,6 +28,14 @@ export interface PainPoint {
   source_count: number;
   created_at: string;
   updated_at: string;
+  // Individual developer feasibility fields
+  is_individual_feasible: boolean;
+  feasibility_reason: string | null;
+  estimated_dev_time: string | null;
+  tech_stack_hints: string[] | null;
+  market_saturation: string | null;
+  individual_score: number;
+  opportunity_score: number;
 }
 
 export interface PainScoreBreakdown {

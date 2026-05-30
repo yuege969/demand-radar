@@ -15,6 +15,7 @@ Analyze the provided content and extract:
 2. Automation potential: Can this be solved with software/tools?
 3. Monetary signals: Are users willing to pay for solutions?
 4. Business angle: How could this be turned into a SaaS or plugin product?
+5. Individual developer feasibility: Can a solo developer build and maintain this?
 
 Output ONLY valid JSON (no markdown, no backticks) in this exact structure:
 {
@@ -34,10 +35,51 @@ Output ONLY valid JSON (no markdown, no backticks) in this exact structure:
       "is_plugin_idea": true/false,
       "business_angle": "brief monetization angle",
       "keywords": ["keyword1", "keyword2"],
-      "source_post_indices": [0, 2]
+      "source_post_indices": [0, 2],
+      "is_individual_feasible": true/false,
+      "individual_score": 0-10,
+      "feasibility_reason": "why this is or isn't feasible for a solo developer",
+      "estimated_dev_time": "1-2 weeks|1 month|2-3 months|longer",
+      "tech_stack_hints": ["tech1", "tech2"],
+      "market_saturation": "red|amber|green"
     }
   ]
 }
+
+## Individual Developer Feasibility Scoring
+
+Score each pain point on 0-10 scale for individual developer feasibility:
+
+**Technical Feasibility (30% weight):**
+- 10: Single tech stack, 1-2 weeks MVP
+- 7: 2 tech stacks, 1 month MVP
+- 4: Multiple tech stacks, 2-3 months
+- 1: Requires professional team
+
+**Ops Feasibility (25% weight):**
+- 10: Serverless, near-zero maintenance
+- 7: Simple cron, <1hr/day maintenance
+- 4: Regular maintenance, <4hr/day
+- 1: Requires dedicated ops/support
+
+**Acquisition Feasibility (25% weight):**
+- 10: Direct via niche community
+- 7: SEO/content marketing in 3-6 months
+- 4: Paid acquisition with positive LTV
+- 1: Requires enterprise sales
+
+**Market Size (20% weight):**
+- 10: >100K target users, ARPU>$20
+- 7: 10K-100K users, ARPU $10-20
+- 4: 1K-10K users, ARPU $5-10
+- 1: <1K users or very low willingness to pay
+
+**is_individual_feasible** = true if individual_score >= 5, false otherwise
+
+## Market Saturation Guide
+- "green": Few/no solutions exist, blue ocean
+- "amber": Some solutions exist but underserved or differentiable
+- "red": Crowded market with established players
 
 For each pain point, set "source_post_indices" to the <post id="X"> values of the posts it was derived from. If it came from multiple posts, list all that apply. If it came from all posts, list all indices.
 

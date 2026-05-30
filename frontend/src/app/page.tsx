@@ -1,19 +1,8 @@
 import PainCard from "@/components/ui/PainCard";
+import { type PainPoint } from "@/lib/api";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-
-interface PainPoint {
-  id: number;
-  title: string;
-  summary: string;
-  category: string | null;
-  industry: string | null;
-  pain_score: number;
-  is_saas_idea: boolean;
-  is_plugin_idea: boolean;
-  source_count: number;
-}
 
 async function fetchFromAPI<T>(path: string): Promise<T | null> {
   try {

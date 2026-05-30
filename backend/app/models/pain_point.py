@@ -20,3 +20,13 @@ class PainPoint(Base):
     business_angle = Column(Text, nullable=True)
     created_at = Column(Text, nullable=False)
     updated_at = Column(Text, nullable=False)
+
+    # Individual developer feasibility fields (Phase 1)
+    is_individual_feasible = Column(Integer, default=0)
+    feasibility_reason = Column(Text, nullable=True)
+    estimated_dev_time = Column(Text, nullable=True)
+    tech_stack_hints = Column(Text, nullable=True)
+    market_saturation = Column(Text, nullable=True)
+    individual_score = Column(Float, default=0.0)
+    opportunity_score = Column(Float, default=0.0)
+

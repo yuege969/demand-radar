@@ -11,7 +11,7 @@ from app.models.pain_point import PainPoint
 from app.models.pain_score import PainScore
 from app.services.ai_analyzer import analyze_posts
 from app.services.deduplicator import encode_texts, find_most_similar, is_duplicate
-from app.services.pain_scorer import calculate_pain_score
+from app.services.pain_scorer import calculate_pain_score, calculate_opportunity_score
 
 
 def process_pending_posts() -> dict:
@@ -129,6 +129,10 @@ def _create_pain_point(db, pp_data: dict, post_ids: list[int]) -> PainPoint:
         "is_long_term": pp_data.get("is_long_term", 0),
     }
     total = calculate_pain_score(score_dims)
+    # AI returns individual_score on 0-10 scale; convert to 0-1 for weighted calculation
+    ai_individual_raw = pp_data.get("individual_score", 0)
+    individual_score_val = ai_individual_raw / 10.0
+    opp_score = calculate_opportunity_score(total, individual_score_val)
 
     pp = PainPoint(
         title=pp_data.get("title", ""),
@@ -144,6 +148,13 @@ def _create_pain_point(db, pp_data: dict, post_ids: list[int]) -> PainPoint:
         business_angle=pp_data.get("business_angle"),
         created_at=now,
         updated_at=now,
+        is_individual_feasible=1 if pp_data.get("is_individual_feasible") else 0,
+        feasibility_reason=pp_data.get("feasibility_reason"),
+        estimated_dev_time=pp_data.get("estimated_dev_time"),
+        tech_stack_hints=json.dumps(pp_data.get("tech_stack_hints", [])),
+        market_saturation=pp_data.get("market_saturation"),
+        individual_score=pp_data.get("individual_score", 0.0),
+        opportunity_score=opp_score,
     )
     db.add(pp)
     db.flush()
@@ -171,3 +182,21 @@ def _merge_pain_point(db, pp_id: int, pp_data: dict, new_post_ids: list[int]) ->
     existing_posts = json.loads(pp.source_post_ids or "[]")
     pp.source_post_ids = json.dumps(list(set(existing_posts + new_post_ids)))
     pp.updated_at = datetime.now(timezone.utc).isoformat()
+
+    # Propagate feasibility fields from new analysis when present
+    if pp_data.get("is_individual_feasible") is not None:
+        pp.is_individual_feasible = 1 if pp_data["is_individual_feasible"] else 0
+    if pp_data.get("individual_score") is not None:
+        pp.individual_score = pp_data["individual_score"]
+    if pp_data.get("feasibility_reason"):
+        pp.feasibility_reason = pp_data["feasibility_reason"]
+    if pp_data.get("estimated_dev_time"):
+        pp.estimated_dev_time = pp_data["estimated_dev_time"]
+    if pp_data.get("tech_stack_hints"):
+        pp.tech_stack_hints = json.dumps(pp_data["tech_stack_hints"])
+    if pp_data.get("market_saturation"):
+        pp.market_saturation = pp_data["market_saturation"]
+    # Recalculate opportunity score if we have both scores available
+    if pp_data.get("individual_score") is not None:
+        ai_raw = pp_data["individual_score"]
+        pp.opportunity_score = calculate_opportunity_score(pp.pain_score, ai_raw / 10.0)
