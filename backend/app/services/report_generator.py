@@ -7,6 +7,7 @@ from loguru import logger
 
 from app.database import SessionLocal
 from app.models.pain_point import PainPoint
+from app.models.post import Post
 from app.repositories.daily_report_repo import DailyReportRepository
 
 
@@ -26,6 +27,8 @@ def generate_daily_report() -> dict:
         ]
         sorted_by_score = sorted(pain_points, key=lambda p: p.pain_score or 0, reverse=True)
 
+        posts_today = db.query(Post).filter(Post.fetched_at >= today).count()
+
         top_ids = [p.id for p in sorted_by_score[:10]]
         new_ids = [p.id for p in today_points[:10]]
 
@@ -36,7 +39,7 @@ def generate_daily_report() -> dict:
         )
 
         stats = json.dumps({
-            "total_posts_crawled": 0,
+            "total_posts_crawled": posts_today,
             "new_pain_points": len(today_points),
             "total_pain_points": total,
             "trending_up": 0,

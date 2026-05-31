@@ -17,7 +17,7 @@ async function fetchFromAPI<T>(path: string): Promise<T | null> {
 export default async function HomePage() {
   const [ppResult, reportResult] = await Promise.all([
     fetchFromAPI<{ data: PainPoint[]; meta: { total: number } }>(
-      "/pain-points?per_page=10&sort_by=pain_score"
+      "/pain-points?per_page=10&sort_by=opportunity_score"
     ),
     fetchFromAPI<{ data: { stats: { new_pain_points: number } } }>(
       "/daily-report"

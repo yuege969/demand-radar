@@ -24,7 +24,7 @@ export default function CategoriesPage() {
     getCategories().then((res) => {
       if (res.success && res.data) setCategories(res.data.categories);
     });
-    getPainPoints({ per_page: "50", sort_by: "pain_score" }).then((res) => {
+    getPainPoints({ per_page: "50", sort_by: "opportunity_score" }).then((res) => {
       if (res.success && res.data) setPainPoints(res.data);
       setLoading(false);
     });
