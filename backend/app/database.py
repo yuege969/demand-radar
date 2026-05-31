@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-
 from loguru import logger
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
@@ -29,20 +27,16 @@ def init_db() -> None:
             os.makedirs(db_dir, exist_ok=True)
             logger.info("Created database directory: {}", db_dir)
 
-    try:
-        from alembic import command
-        from alembic.config import Config
+    import app.models.post  # noqa: F401
+    import app.models.comment  # noqa: F401
+    import app.models.pain_point  # noqa: F401
+    import app.models.pain_score  # noqa: F401
+    import app.models.daily_report  # noqa: F401
+    import app.models.data_source  # noqa: F401
+    import app.models.crawl_log  # noqa: F401
 
-        backend_dir = Path(__file__).resolve().parent.parent
-        alembic_ini = backend_dir / "alembic.ini"
-        alembic_cfg = Config(str(alembic_ini))
-        alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-        command.upgrade(alembic_cfg, "head")
-        logger.info("Database migrations applied successfully")
-    except Exception as exc:
-        logger.warning("Alembic migration failed ({}), creating tables via create_all", exc)
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables ensured via create_all")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created from ORM models")
 
     inspector = inspect(engine)
     logger.info("Database ready — tables: {}", inspector.get_table_names())

@@ -7,7 +7,7 @@ class Comment(Base):
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    reddit_comment_id = Column(Text, nullable=False, unique=True)
+    external_id = Column(Text, nullable=False, unique=True)
     post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
     body = Column(Text, nullable=False)
     author = Column(Text, nullable=True)

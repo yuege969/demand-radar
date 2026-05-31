@@ -14,11 +14,11 @@ class PostRepository:
     def get_by_id(self, id: int) -> Optional[Post]:
         return self.db.query(Post).filter(Post.id == id).first()
 
-    def get_by_reddit_id(self, reddit_id: str) -> Optional[Post]:
-        return self.db.query(Post).filter(Post.reddit_id == reddit_id).first()
+    def get_by_external_id(self, external_id: str) -> Optional[Post]:
+        return self.db.query(Post).filter(Post.external_id == external_id).first()
 
     def create_or_skip(self, post: Post) -> Optional[Post]:
-        existing = self.get_by_reddit_id(post.reddit_id)
+        existing = self.get_by_external_id(post.external_id)
         if existing:
             return None
         self.db.add(post)

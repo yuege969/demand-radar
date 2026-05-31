@@ -21,6 +21,27 @@ async def lifespan(app: FastAPI):
 
     await asyncio.to_thread(init_db)
 
+    from app.services.crawler_registry import CrawlerRegistry
+    from app.services.reddit_crawler import RedditCrawler
+    from app.services.hn_crawler import HackerNewsCrawler
+
+    CrawlerRegistry.seed_default_sources()
+
+    import json
+    from app.database import SessionLocal
+    from app.models.data_source import DataSource
+
+    db = SessionLocal()
+    try:
+        reddit_ds = db.query(DataSource).filter(DataSource.name == "reddit").first()
+        hn_ds = db.query(DataSource).filter(DataSource.name == "hackernews").first()
+        if reddit_ds:
+            CrawlerRegistry.register(RedditCrawler(json.loads(reddit_ds.config)))
+        if hn_ds:
+            CrawlerRegistry.register(HackerNewsCrawler(json.loads(hn_ds.config)))
+    finally:
+        db.close()
+
     from app.services.deduplicator import preload_model
 
     await asyncio.to_thread(preload_model)

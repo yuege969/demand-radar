@@ -4,27 +4,39 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from loguru import logger
 
 from app.config import settings
+from app.database import SessionLocal
 
 scheduler = BackgroundScheduler()
 
 
 def _scheduled_crawl() -> None:
-    from app.services.reddit_crawler import crawl_subreddits
-    from app.services.hn_crawler import crawl_hn
+    from app.services.crawler_registry import CrawlerRegistry
     from app.services.pipeline import process_pending_posts
     from app.services.report_generator import generate_daily_report
 
     logger.info("Scheduled crawl job starting")
+    db = SessionLocal()
     try:
-        reddit_result = crawl_subreddits()
-        hn_result = crawl_hn()
-        total_new = reddit_result["posts_fetched"] + hn_result["posts_fetched"]
+        total_new = 0
+        for crawler in CrawlerRegistry.get_enabled():
+            try:
+                result = crawler.crawl(db)
+                db.commit()
+                total_new += result.posts_fetched
+                logger.info("{} crawl: {} posts", crawler.source_name, result.posts_fetched)
+            except Exception as e:
+                db.rollback()
+                logger.error("{} crawl failed: {}", crawler.source_name, e)
+
         if total_new > 0:
             pipeline_result = process_pending_posts()
             logger.info("Pipeline result: {}", pipeline_result)
+
         generate_daily_report()
     except Exception as e:
         logger.error("Scheduled crawl job failed: {}", e)
+    finally:
+        db.close()
 
 
 def start_scheduler() -> None:

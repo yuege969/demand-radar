@@ -8,7 +8,8 @@ from pydantic import BaseModel
 
 class PostOut(BaseModel):
     id: int
-    reddit_id: str
+    external_id: str
+    source: str
     title: str
     body: Optional[str] = None
     url: Optional[str] = None
@@ -16,6 +17,8 @@ class PostOut(BaseModel):
     author: Optional[str] = None
     score: int
     num_comments: int
+    signal_score: Optional[float] = None
+    analysis_stage: str
     created_utc: str
     fetched_at: str
     processed: int
@@ -29,7 +32,7 @@ class PostDetail(PostOut):
 
 class CommentOut(BaseModel):
     id: int
-    reddit_comment_id: str
+    external_id: str
     post_id: int
     body: str
     author: Optional[str] = None

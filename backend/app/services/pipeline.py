@@ -1,3 +1,5 @@
+"""Multi-stage pipeline: signal scoring → LLM triage → deep analysis → dedup → store."""
+
 from __future__ import annotations
 
 import json
@@ -9,112 +11,176 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.pain_point import PainPoint
 from app.models.pain_score import PainScore
+from app.models.post import Post
 from app.services.ai_analyzer import analyze_posts
 from app.services.deduplicator import encode_texts, find_most_similar, is_duplicate
+from app.services.llm_triage import triage_posts
 from app.services.pain_scorer import calculate_pain_score, calculate_opportunity_score
+from app.services.signal_scorer import score_post, SIGNAL_THRESHOLD_LOW
 
 
 def process_pending_posts() -> dict:
-    """Process ALL pending posts in batches, looping until none remain."""
-    from app.models.post import Post
+    """Run the full multi-stage pipeline on all pending posts.
 
-    total_processed = 0
-    total_new_pain_points = 0
+    Stages:
+      1. Signal scoring (regex, no LLM) -- skip posts below threshold
+      2. LLM triage (fast, minimal prompt) -- classify pain-point vs noise
+      3. Deep analysis (full prompt) -- extract detailed pain points
+      4. Dedup + store
+    """
+    db = SessionLocal()
+    try:
+        pending = db.query(Post).filter(Post.processed == 0).all()
+        if not pending:
+            logger.info("No pending posts to process")
+            return {"processed": 0, "new_pain_points": 0, "signal_skipped": 0, "triage_skipped": 0}
 
-    while True:
-        db = SessionLocal()
-        try:
-            pending = db.query(Post).filter(Post.processed == 0).limit(settings.MAX_POSTS_PER_BATCH).all()
-            if not pending:
-                if total_processed == 0:
-                    logger.info("No pending posts to process")
-                break
+        logger.info("Pipeline starting: {} pending posts", len(pending))
 
-            logger.info("Processing batch: {} posts", len(pending))
+        # -- Stage 1: Signal Scoring ---------------------------------
+        for p in pending:
+            p.signal_score = score_post(p.title, p.body or "", p.score or 0, p.num_comments or 0)
+            p.analysis_stage = "signal_scored"
 
-            posts_data = [
-                {
-                    "id": p.id,
-                    "title": p.title,
-                    "body": p.body or "",
-                    "subreddit": p.subreddit,
-                    "score": p.score or 0,
-                    "num_comments": p.num_comments or 0,
-                }
-                for p in pending
-            ]
+        low_signal = [p for p in pending if p.signal_score < SIGNAL_THRESHOLD_LOW]
+        for p in low_signal:
+            p.analysis_stage = "skipped_low_signal"
+            p.processed = 1
 
-            extracted = analyze_posts(posts_data)
-            if not extracted:
-                for p in pending:
-                    p.processed = 1
-                db.commit()
-                total_processed += len(pending)
-                continue
+        candidates = [p for p in pending if p.signal_score >= SIGNAL_THRESHOLD_LOW]
+        logger.info(
+            "Signal scoring: {} passed, {} skipped (low signal)",
+            len(candidates),
+            len(low_signal),
+        )
 
-            existing_pps = db.query(PainPoint).all()
-            existing_embeddings: list[tuple[int, list[float]]] = []
-            if existing_pps:
-                summaries = [pp.summary for pp in existing_pps]
-                encodings = encode_texts(summaries)
-                for pp, emb in zip(existing_pps, encodings):
-                    existing_embeddings.append((pp.id, emb))
+        if not candidates:
+            db.commit()
+            return {"processed": len(pending), "new_pain_points": 0, "signal_skipped": len(low_signal), "triage_skipped": 0}
 
-            if existing_embeddings:
-                new_embeddings = encode_texts([e.get("summary", "") for e in extracted])
+        # -- Stage 2: LLM Triage -------------------------------------
+        triage_input = [
+            {"index": i, "title": p.title, "body": p.body or ""}
+            for i, p in enumerate(candidates)
+        ]
+        triage_results = triage_posts(triage_input)
+        triage_map = {r.get("index", i): r for i, r in enumerate(triage_results)}
+
+        pain_posts: list[Post] = []
+        for i, p in enumerate(candidates):
+            tr = triage_map.get(i, {"is_pain_point": False, "title": "", "confidence": 0})
+            p.triage_result = json.dumps(tr)
+            p.analysis_stage = "triaged"
+            if tr.get("is_pain_point"):
+                pain_posts.append(p)
             else:
-                new_embeddings = [[] for _ in extracted]
-
-            batch_new_pps = 0
-            for i, pp_data in enumerate(extracted):
-                src_indices = pp_data.get("source_indices", [])
-                if src_indices and isinstance(src_indices, list):
-                    post_ids_for_pp = list({
-                        posts_data[idx]["id"]
-                        for idx in src_indices
-                        if 0 <= idx < len(posts_data)
-                    })
-                else:
-                    post_ids_for_pp = [p.id for p in pending]
-
-                if not post_ids_for_pp:
-                    post_ids_for_pp = [p.id for p in pending]
-
-                best_id, best_score = find_most_similar(
-                    new_embeddings[i], existing_embeddings
-                ) if existing_embeddings else (None, -1.0)
-
-                if best_id and is_duplicate(best_score):
-                    _merge_pain_point(db, best_id, pp_data, post_ids_for_pp)
-                else:
-                    _create_pain_point(db, pp_data, post_ids_for_pp)
-                    batch_new_pps += 1
-
-            for p in pending:
+                p.analysis_stage = "skipped_not_pain"
                 p.processed = 1
 
-            db.commit()
-            total_processed += len(pending)
-            total_new_pain_points += batch_new_pps
+        triage_skipped = len(candidates) - len(pain_posts)
+        logger.info("Triage: {} pain-points, {} not-pain", len(pain_posts), triage_skipped)
 
-            logger.info("Batch complete: {} processed, {} new pain points",
-                        len(pending), batch_new_pps)
-        except Exception as e:
-            db.rollback()
-            logger.error("Pipeline batch failed: {}", e)
-            for p in db.query(Post).filter(Post.processed == 0).limit(
-                settings.MAX_POSTS_PER_BATCH
-            ).all():
-                p.processed = 2
-                p.error_message = str(e)[:500]
+        if not pain_posts:
             db.commit()
-            raise
-        finally:
-            db.close()
+            return {
+                "processed": len(pending),
+                "new_pain_points": 0,
+                "signal_skipped": len(low_signal),
+                "triage_skipped": triage_skipped,
+            }
 
-    logger.info("Pipeline complete: {} posts processed, {} new pain points",
-                total_processed, total_new_pain_points)
-    return {"processed": total_processed, "new_pain_points": total_new_pain_points}
+        # -- Stage 3: Deep Analysis ----------------------------------
+        posts_data = [
+            {
+                "id": p.id,
+                "title": p.title,
+                "body": p.body or "",
+                "subreddit": p.subreddit,
+                "score": p.score or 0,
+                "num_comments": p.num_comments or 0,
+            }
+            for p in pain_posts
+        ]
+
+        extracted = analyze_posts(posts_data)
+
+        if not extracted:
+            for p in pain_posts:
+                p.processed = 1
+                p.analysis_stage = "analyzed"
+            db.commit()
+            return {
+                "processed": len(pending),
+                "new_pain_points": 0,
+                "signal_skipped": len(low_signal),
+                "triage_skipped": triage_skipped,
+            }
+
+        # -- Stage 4: Dedup + Store ----------------------------------
+        existing_pps = db.query(PainPoint).all()
+        existing_embeddings: list[tuple[int, list[float]]] = []
+        if existing_pps:
+            summaries = [pp.summary for pp in existing_pps]
+            encodings = encode_texts(summaries)
+            for pp, emb in zip(existing_pps, encodings):
+                existing_embeddings.append((pp.id, emb))
+
+        new_embeddings = (
+            encode_texts([e.get("summary", "") for e in extracted])
+            if existing_embeddings
+            else [[] for _ in extracted]
+        )
+
+        batch_new_pps = 0
+        for i, pp_data in enumerate(extracted):
+            src_indices = pp_data.get("source_indices", [])
+            if src_indices and isinstance(src_indices, list):
+                post_ids_for_pp = list({
+                    posts_data[idx]["id"]
+                    for idx in src_indices
+                    if 0 <= idx < len(posts_data)
+                })
+            else:
+                post_ids_for_pp = [p.id for p in pain_posts]
+
+            if not post_ids_for_pp:
+                post_ids_for_pp = [p.id for p in pain_posts]
+
+            best_id, best_score = find_most_similar(
+                new_embeddings[i], existing_embeddings
+            ) if existing_embeddings else (None, -1.0)
+
+            if best_id and is_duplicate(best_score):
+                _merge_pain_point(db, best_id, pp_data, post_ids_for_pp)
+            else:
+                _create_pain_point(db, pp_data, post_ids_for_pp)
+                batch_new_pps += 1
+
+        for p in pain_posts:
+            p.processed = 1
+            p.analysis_stage = "analyzed"
+
+        db.commit()
+        logger.info(
+            "Pipeline complete: {} processed, {} signal-skipped, {} triage-skipped, {} new pain points",
+            len(pending),
+            len(low_signal),
+            triage_skipped,
+            batch_new_pps,
+        )
+        return {
+            "processed": len(pending),
+            "new_pain_points": batch_new_pps,
+            "signal_skipped": len(low_signal),
+            "triage_skipped": triage_skipped,
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Pipeline failed: {}", e)
+        raise
+    finally:
+        db.close()
 
 
 def _create_pain_point(db, pp_data: dict, post_ids: list[int]) -> PainPoint:

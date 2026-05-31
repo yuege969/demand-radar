@@ -8,14 +8,14 @@ from loguru import logger
 from pydantic import BaseModel
 
 from app.auth import verify_admin_token
+from app.database import SessionLocal
 from app.schemas import ApiResponse
 from app.schemas.report import CrawlStatus
 
 router = APIRouter()
 
 STEPS = [
-    {"step": "crawl_reddit", "label": "Reddit 抓取"},
-    {"step": "crawl_hn", "label": "HN 抓取"},
+    {"step": "crawl_all", "label": "全量抓取"},
     {"step": "analyze", "label": "AI 分析"},
     {"step": "report", "label": "日报生成"},
 ]
@@ -69,24 +69,39 @@ def _run_pipeline(start_step: str):
             _update_step(i, status="skipped")
             continue
 
-        _update_step(i, status="running", started_at=datetime.now(timezone.utc).isoformat(), message="正在执行...")
+        step_name = STEPS[i]["step"]
+        _update_step(i, status="running", started_at=datetime.now(timezone.utc).isoformat(), message="Running...")
 
         try:
-            if STEPS[i]["step"] == "crawl_reddit":
-                from app.services.reddit_crawler import crawl_subreddits
-                result = crawl_subreddits()
-            elif STEPS[i]["step"] == "crawl_hn":
-                from app.services.hn_crawler import crawl_hn
-                result = crawl_hn()
-            elif STEPS[i]["step"] == "analyze":
+            if step_name == "crawl_all":
+                from app.services.crawler_registry import CrawlerRegistry
+
+                db = SessionLocal()
+                crawl_results = {}
+                try:
+                    for crawler in CrawlerRegistry.get_enabled():
+                        _update_step(i, message=f"Crawling {crawler.source_name}...")
+                        result = crawler.crawl(db)
+                        db.commit()
+                        crawl_results[crawler.source_name] = {
+                            "posts_fetched": result.posts_fetched,
+                            "comments_fetched": result.comments_fetched,
+                            "errors": result.errors,
+                        }
+                    result = crawl_results
+                finally:
+                    db.close()
+
+            elif step_name == "analyze":
                 from app.services.deduplicator import is_model_ready
 
                 if not is_model_ready():
-                    raise RuntimeError("Embedding 模型未加载，请等待服务初始化完成")
-                _update_step(i, message="正在调用 AI 分析...")
+                    raise RuntimeError("Embedding model not loaded")
+                _update_step(i, message="Running AI analysis...")
                 from app.services.pipeline import process_pending_posts
                 result = process_pending_posts()
-            elif STEPS[i]["step"] == "report":
+
+            elif step_name == "report":
                 from app.services.report_generator import generate_daily_report
                 result = generate_daily_report()
             else:
@@ -99,7 +114,7 @@ def _run_pipeline(start_step: str):
                 result=result,
                 message=None,
             )
-            logger.info("Step {} completed: {}", STEPS[i]["step"], result)
+            logger.info("Step {} completed: {}", step_name, result)
         except Exception as e:
             _update_step(
                 i,
@@ -108,9 +123,9 @@ def _run_pipeline(start_step: str):
                 error=str(e),
                 message=None,
             )
-            logger.error("Step {} failed: {}", STEPS[i]["step"], e)
+            logger.error("Step {} failed: {}", step_name, e)
             with _lock:
-                _crawl_state["last_result"] = f"failed at step {STEPS[i]['step']}: {e}"
+                _crawl_state["last_result"] = f"failed at step {step_name}: {e}"
                 _crawl_state["is_running"] = False
             return
 
@@ -120,7 +135,7 @@ def _run_pipeline(start_step: str):
 
 
 class CrawlTriggerRequest(BaseModel):
-    start_step: str = "crawl_reddit"
+    start_step: str = "crawl_all"
 
 
 @router.post("/trigger")
@@ -133,7 +148,7 @@ def trigger_crawl(
             return ApiResponse(data={"message": "Crawl already in progress"})
         _crawl_state["is_running"] = True
 
-    start_step = body.start_step if body else "crawl_reddit"
+    start_step = body.start_step if body else "crawl_all"
     thread = threading.Thread(target=_run_pipeline, args=(start_step,), daemon=True)
     thread.start()
 

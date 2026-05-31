@@ -57,7 +57,8 @@ export interface PainPointDetail extends PainPoint {
 
 export interface Post {
   id: number;
-  reddit_id: string;
+  external_id: string;
+  source: string;
   title: string;
   body: string | null;
   url: string | null;
@@ -65,6 +66,8 @@ export interface Post {
   author: string | null;
   score: number;
   num_comments: number;
+  signal_score: number | null;
+  analysis_stage: string;
   created_utc: string;
   fetched_at: string;
   processed: number;
@@ -152,7 +155,7 @@ export async function triggerCrawl(adminToken: string, startStep?: string): Prom
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Admin-Token": adminToken },
-    body: JSON.stringify({ start_step: startStep || "crawl_reddit" }),
+    body: JSON.stringify({ start_step: startStep || "crawl_all" }),
   });
   if (!res.ok) {
     return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };
