@@ -1,0 +1,116 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import threading
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.auth import verify_admin_token
+from app.database import get_db
+from app.models.pain_point import PainPoint
+from app.models.research_job import ResearchJob
+from app.schemas import ApiResponse, PaginationMeta
+
+router = APIRouter()
+
+
+class ResearchRequest(BaseModel):
+    domain: str
+    platforms: list[str] = ["web"]
+
+
+def _run_research_in_thread(domain: str, platforms: list[str]):
+    try:
+        from app.services.research_orchestrator import run_research
+
+        asyncio.run(run_research(domain, platforms))
+    except Exception as e:
+        logger.error("Research thread failed: {}", e)
+
+
+def _job_to_dict(job: ResearchJob) -> dict:
+    return {
+        "id": job.id,
+        "domain": job.domain,
+        "platforms": json.loads(job.platforms) if job.platforms else [],
+        "status": job.status,
+        "total_findings": job.total_findings or 0,
+        "pain_points_extracted": job.pain_points_extracted or 0,
+        "error_message": job.error_message,
+        "created_at": job.created_at,
+        "completed_at": job.completed_at,
+    }
+
+
+@router.post("")
+def create_research(
+    body: ResearchRequest,
+    _token: str = Depends(verify_admin_token),
+):
+    thread = threading.Thread(
+        target=_run_research_in_thread,
+        args=(body.domain, body.platforms),
+        daemon=True,
+    )
+    thread.start()
+    return ApiResponse(data={"message": "Research started", "domain": body.domain})
+
+
+@router.get("")
+def list_research(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    total = db.query(ResearchJob).count()
+    jobs = (
+        db.query(ResearchJob)
+        .order_by(ResearchJob.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    return ApiResponse(
+        data=[_job_to_dict(j) for j in jobs],
+        meta=PaginationMeta(page=page, per_page=per_page, total=total).model_dump(),
+    )
+
+
+@router.get("/{job_id}")
+def get_research(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(ResearchJob).filter(ResearchJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Research job not found")
+    return ApiResponse(data=_job_to_dict(job))
+
+
+@router.get("/{job_id}/pain-points")
+def get_research_pain_points(
+    job_id: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    job = db.query(ResearchJob).filter(ResearchJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Research job not found")
+
+    query = db.query(PainPoint).filter(PainPoint.research_job_id == job_id)
+    total = query.count()
+    points = (
+        query.order_by(PainPoint.opportunity_score.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    from app.routers.pain_points import _to_pain_point_out
+
+    return ApiResponse(
+        data=[_to_pain_point_out(p) for p in points],
+        meta=PaginationMeta(page=page, per_page=per_page, total=total).model_dump(),
+    )

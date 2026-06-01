@@ -47,5 +47,5 @@ class PainScoreBreakdown(BaseModel):
 
 class PainPointDetail(PainPointOut):
     score_breakdown: Optional[PainScoreBreakdown] = None
-    source_posts: list["PostOut"] = []
+    source_posts: list = []
     related: list["PainPointOut"] = []

@@ -18,10 +18,10 @@ def test_list_posts_empty(client: TestClient):
     assert isinstance(data["data"], list)
 
 
-def test_crawl_trigger_without_token(client: TestClient):
+def test_research_trigger_without_token(client: TestClient):
     """Without ADMIN_API_TOKEN configured, the endpoint returns 500.
     With a configured token but no header, it would return 401."""
-    response = client.post("/api/v1/crawl/trigger")
+    response = client.post("/api/v1/research", json={"domain": "test"})
     assert response.status_code in (401, 500)
 
 
@@ -32,9 +32,9 @@ def test_list_pain_points_empty(client: TestClient):
     assert data["success"] is True
 
 
-def test_crawl_status(client: TestClient):
-    response = client.get("/api/v1/crawl/status")
+def test_list_research_empty(client: TestClient):
+    response = client.get("/api/v1/research")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert "is_running" in data["data"]
+    assert isinstance(data["data"], list)

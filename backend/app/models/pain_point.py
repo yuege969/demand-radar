@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Float
+from sqlalchemy import Column, Integer, Text, Float, ForeignKey
 
 from app.models import Base
 
@@ -7,6 +7,7 @@ class PainPoint(Base):
     __tablename__ = "pain_points"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    research_job_id = Column(Integer, ForeignKey("research_jobs.id"), nullable=True)
     title = Column(Text, nullable=False)
     summary = Column(Text, nullable=False)
     category = Column(Text, nullable=True)

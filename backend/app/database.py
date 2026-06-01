@@ -32,8 +32,8 @@ def init_db() -> None:
     import app.models.pain_point  # noqa: F401
     import app.models.pain_score  # noqa: F401
 
-    import app.models.data_source  # noqa: F401
-    import app.models.crawl_log  # noqa: F401
+    import app.models.research_job  # noqa: F401
+    import app.models.research_finding  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created from ORM models")

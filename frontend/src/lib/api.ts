@@ -49,9 +49,20 @@ export interface PainScoreBreakdown {
   total_score: number;
 }
 
+export interface SourceRef {
+  platform?: string;
+  title?: string;
+  url?: string;
+  id?: number;
+  subreddit?: string;
+  score?: number;
+  num_comments?: number;
+  created_utc?: string;
+}
+
 export interface PainPointDetail extends PainPoint {
   score_breakdown: PainScoreBreakdown | null;
-  source_posts: Post[];
+  source_posts: SourceRef[];
   related: PainPoint[];
 }
 
@@ -73,23 +84,16 @@ export interface Post {
   processed: number;
 }
 
-export interface StepStatus {
-  step: string;
-  label: string;
+export interface ResearchJob {
+  id: number;
+  domain: string;
+  platforms: string[];
   status: string;
-  started_at: string | null;
+  total_findings: number;
+  pain_points_extracted: number;
+  error_message: string | null;
+  created_at: string;
   completed_at: string | null;
-  result: Record<string, unknown> | null;
-  error: string | null;
-  message: string | null;
-}
-
-export interface CrawlStatus {
-  is_running: boolean;
-  last_run_at: string | null;
-  last_result: string | null;
-  steps: StepStatus[];
-  model_ready: boolean;
 }
 
 async function fetchApi<T>(endpoint: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
@@ -124,16 +128,24 @@ export async function getPosts(params?: Record<string, string>): Promise<ApiResp
   return fetchApi<Post[]>("/posts", params);
 }
 
-export async function getCrawlStatus(): Promise<ApiResponse<CrawlStatus>> {
-  return fetchApi<CrawlStatus>("/crawl/status");
+export async function getResearchJobs(params?: Record<string, string>): Promise<ApiResponse<ResearchJob[]>> {
+  return fetchApi<ResearchJob[]>("/research", params);
 }
 
-export async function triggerCrawl(adminToken: string, startStep?: string): Promise<ApiResponse<unknown>> {
-  const url = `${API_URL}/crawl/trigger`;
+export async function getResearchJob(id: number): Promise<ApiResponse<ResearchJob>> {
+  return fetchApi<ResearchJob>(`/research/${id}`);
+}
+
+export async function getResearchPainPoints(id: number, params?: Record<string, string>): Promise<ApiResponse<PainPoint[]>> {
+  return fetchApi<PainPoint[]>(`/research/${id}/pain-points`, params);
+}
+
+export async function triggerResearch(domain: string, adminToken: string, platforms?: string[]): Promise<ApiResponse<unknown>> {
+  const url = `${API_URL}/research`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Admin-Token": adminToken },
-    body: JSON.stringify({ start_step: startStep || "crawl_all" }),
+    body: JSON.stringify({ domain, platforms: platforms || ["web"] }),
   });
   if (!res.ok) {
     return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };

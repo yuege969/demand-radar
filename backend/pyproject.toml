@@ -13,6 +13,9 @@ dependencies = [
     "apscheduler>=3.10.0",
     "loguru>=0.7.0",
     "httpx[socks]>=0.27.0",
+    "firecrawl-py",
+    "mcp>=1.0.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

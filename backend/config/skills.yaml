@@ -1,0 +1,19 @@
+# Skill search paths — directories containing SKILL.md files
+# Supports Claude Code marketplace format: skills/<name>/SKILL.md
+skill_search_paths:
+  - ~/.claude/plugins/marketplaces/ecc/skills
+  - ~/.claude/plugins/marketplaces/claude-plugins-official/plugins
+
+# MCP server configurations — tools accessible to researchers
+mcp_servers:
+  # Example: web search via Brave
+  # brave_search:
+  #   command: npx
+  #   args: ["-y", "@anthropic/mcp-server-brave-search"]
+  #   env:
+  #     BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+  # Example: web fetch for reading URLs
+  # fetch:
+  #   command: npx
+  #   args: ["-y", "@anthropic/mcp-server-fetch"]

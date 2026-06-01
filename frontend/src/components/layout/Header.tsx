@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/", label: "首页" },
   { href: "/categories", label: "行业分类" },
-  { href: "/admin", label: "管理" },
 ];
 
 export default function Header() {

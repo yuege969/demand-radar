@@ -1,4 +1,5 @@
 import PainCard from "@/components/ui/PainCard";
+import ResearchInput from "@/components/home/ResearchInput";
 import { type PainPoint } from "@/lib/api";
 
 const API_URL =
@@ -18,20 +19,29 @@ export default async function HomePage() {
   const ppResult = await fetchFromAPI<{
     data: PainPoint[];
     meta: { total: number };
-  }>("/pain-points?per_page=10&sort_by=opportunity_score");
+  }>("/pain-points?per_page=12&sort_by=opportunity_score");
 
   const painPoints = ppResult?.data ?? [];
-
   const total = ppResult?.meta?.total ?? painPoints.length;
 
   const stats = [
     { label: "累计需求", value: String(total), color: "text-emerald-600" },
-    { label: "SaaS 机会", value: painPoints.filter((p) => p.is_saas_idea).length.toString(), color: "text-amber-600" },
-    { label: "可独立开发", value: painPoints.filter((p) => p.is_individual_feasible).length.toString(), color: "text-indigo-600" },
+    {
+      label: "SaaS 机会",
+      value: painPoints.filter((p) => p.is_saas_idea).length.toString(),
+      color: "text-amber-600",
+    },
+    {
+      label: "可独立开发",
+      value: painPoints.filter((p) => p.is_individual_feasible).length.toString(),
+      color: "text-indigo-600",
+    },
   ];
 
   return (
     <div className="space-y-8">
+      <ResearchInput />
+
       <div className="grid gap-4 sm:grid-cols-3">
         {stats.map((s) => (
           <div
@@ -39,19 +49,18 @@ export default async function HomePage() {
             className="rounded-xl border border-gray-200 bg-white p-5"
           >
             <p className="text-sm text-gray-500">{s.label}</p>
-            <p className={`text-3xl font-bold mt-1 ${s.color}`}>
-              {s.value}
-            </p>
+            <p className={`text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
+
       <section>
-        <h2 className="text-xl font-semibold mb-4">今日热门需求</h2>
+        <h2 className="text-xl font-semibold mb-4">需求列表</h2>
         {painPoints.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <p className="text-lg">暂无需求数据</p>
             <p className="text-sm mt-2">
-              启动后端并触发数据抓取后将在此显示需求分析结果。
+              输入领域名称并点击"开始研究"，系统将自动搜索并分析需求。
             </p>
           </div>
         ) : (

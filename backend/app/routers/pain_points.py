@@ -94,11 +94,17 @@ def get_pain_point(pain_point_id: int, db: Session = Depends(get_db)):
     score = db.query(PainScore).filter(PainScore.pain_point_id == pain_point_id).first()
     breakdown = PainScoreBreakdown.model_validate(score) if score else None
 
-    source_posts = []
+    source_posts: list = []
     if pp.source_post_ids:
         try:
             ids = json.loads(pp.source_post_ids)
-            source_posts = db.query(Post).filter(Post.id.in_(ids)).all()
+            if ids and isinstance(ids[0], dict):
+                source_posts = ids
+            elif ids:
+                from app.schemas.post import PostOut
+
+                posts = db.query(Post).filter(Post.id.in_(ids)).all()
+                source_posts = [PostOut.model_validate(p) for p in posts]
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -113,13 +119,11 @@ def get_pain_point(pain_point_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
-    from app.schemas.post import PostOut
-
     return ApiResponse(
         data=PainPointDetail(
             **_to_pain_point_out(pp).model_dump(),
             score_breakdown=breakdown,
-            source_posts=[PostOut.model_validate(p) for p in source_posts],
+            source_posts=source_posts,
             related=[_to_pain_point_out(r) for r in related],
         )
     )
