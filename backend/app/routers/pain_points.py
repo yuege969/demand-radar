@@ -54,6 +54,11 @@ def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
         market_saturation=pp.market_saturation,
         individual_score=pp.individual_score or 0.0,
         opportunity_score=pp.opportunity_score or 0.0,
+        demand_validation=pp.demand_validation,
+        market_value_analysis=pp.market_value_analysis,
+        implementation_plan=pp.implementation_plan,
+        solo_feasibility=pp.solo_feasibility,
+        enriched_at=pp.enriched_at,
     )
 
 

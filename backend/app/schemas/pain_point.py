@@ -28,6 +28,12 @@ class PainPointOut(BaseModel):
     market_saturation: Optional[str] = None
     individual_score: float = 0.0
     opportunity_score: float = 0.0
+    # Deep analysis enrichment fields
+    demand_validation: Optional[str] = None
+    market_value_analysis: Optional[str] = None
+    implementation_plan: Optional[str] = None
+    solo_feasibility: Optional[str] = None
+    enriched_at: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

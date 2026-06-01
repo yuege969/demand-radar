@@ -3,9 +3,35 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getPainPoint, type PainPointDetail } from "@/lib/api";
+import {
+  getPainPoint,
+  type PainPointDetail,
+  type DemandValidation,
+  type MarketValueAnalysis,
+  type ImplementationPlan,
+  type SoloFeasibility,
+} from "@/lib/api";
 import { formatDate, formatScore, scoreColor, toDisplayScore } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
+
+function parseAnalysis<T>(jsonStr: string | null): T | null {
+  if (!jsonStr) return null;
+  try {
+    return JSON.parse(jsonStr) as T;
+  } catch {
+    return null;
+  }
+}
+
+function AnalysisField({ label, text }: { label: string; text: string }) {
+  if (!text) return null;
+  return (
+    <div className="mb-4 last:mb-0">
+      <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
+      <p className="text-sm text-gray-800 leading-relaxed">{text}</p>
+    </div>
+  );
+}
 
 export default function PainPointDetailPage() {
   const params = useParams();
@@ -50,6 +76,12 @@ export default function PainPointDetailPage() {
     { key: "automation_difficulty", label: "实现难度", w: 0.10 },
     { key: "is_long_term", label: "长期需求", w: 0.05 },
   ] : [];
+
+  const demandValidation = parseAnalysis<DemandValidation>(data.demand_validation);
+  const marketValue = parseAnalysis<MarketValueAnalysis>(data.market_value_analysis);
+  const implementation = parseAnalysis<ImplementationPlan>(data.implementation_plan);
+  const soloFeasibility = parseAnalysis<SoloFeasibility>(data.solo_feasibility);
+  const hasEnriched = data.enriched_at !== null;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -101,16 +133,86 @@ export default function PainPointDetailPage() {
         </div>
       </header>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="font-semibold text-gray-900 mb-3">AI 分析摘要</h2>
-        <p className="text-gray-700 leading-relaxed">{data.summary}</p>
-        {data.business_angle && (
-          <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 p-4">
-            <p className="text-sm font-medium text-amber-800">商业机会</p>
-            <p className="text-amber-700 mt-1">{data.business_angle}</p>
+      {!hasEnriched && data.summary && (
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="font-semibold text-gray-900 mb-3">摘要</h2>
+          <p className="text-gray-700 leading-relaxed">{data.summary}</p>
+          {data.business_angle && (
+            <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 p-4">
+              <p className="text-sm font-medium text-amber-800">商业机会</p>
+              <p className="text-amber-700 mt-1">{data.business_angle}</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {demandValidation && (
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="font-semibold text-gray-900 mb-4">需求真实性分析</h2>
+          {!demandValidation.is_genuine_demand && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              该需求被判定为可能不够真实，请谨慎参考以下分析。
+            </div>
+          )}
+          <AnalysisField label="判断依据" text={demandValidation.validation_reasoning} />
+          <AnalysisField label="来源证据" text={demandValidation.evidence_from_sources} />
+          <AnalysisField label="频率分析" text={demandValidation.frequency_analysis} />
+          <AnalysisField label="用户情绪强度" text={demandValidation.user_sentiment_intensity} />
+        </section>
+      )}
+
+      {marketValue && (
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="font-semibold text-gray-900 mb-4">市场价值分析</h2>
+          <AnalysisField label="市场规模估算" text={marketValue.market_size_estimate} />
+          <AnalysisField label="目标用户群体" text={marketValue.target_audience} />
+          <AnalysisField label="付费意愿证据" text={marketValue.willingness_to_pay_evidence} />
+          <AnalysisField label="竞争格局" text={marketValue.competition_landscape} />
+          <AnalysisField label="变现潜力" text={marketValue.monetization_potential} />
+        </section>
+      )}
+
+      {implementation && (
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="font-semibold text-gray-900 mb-4">落地实施方案</h2>
+          <div className="mb-4 rounded-lg bg-indigo-50 border border-indigo-200 p-4">
+            <p className="text-sm font-medium text-indigo-800 mb-1">MVP 范围</p>
+            <p className="text-indigo-700 text-sm">{implementation.mvp_scope}</p>
           </div>
-        )}
-      </section>
+          <AnalysisField label="技术方案" text={implementation.technical_approach} />
+          {implementation.recommended_tech_stack.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">推荐技术栈</p>
+              <div className="flex flex-wrap gap-1.5">
+                {implementation.recommended_tech_stack.map((tech: string) => (
+                  <span key={tech} className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <AnalysisField label="技术选型理由" text={implementation.tech_stack_rationale} />
+          <AnalysisField label="推广策略" text={implementation.go_to_market_strategy} />
+          <AnalysisField label="盈利模式" text={implementation.monetization_model} />
+        </section>
+      )}
+
+      {soloFeasibility && (
+        <section className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="font-semibold text-gray-900 mb-4">个人可行性评估</h2>
+          <AnalysisField label="具体障碍" text={soloFeasibility.specific_barriers} />
+          <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-4">
+            <p className="text-sm font-medium text-green-800 mb-1">如何克服</p>
+            <p className="text-green-700 text-sm">{soloFeasibility.how_to_overcome}</p>
+          </div>
+          <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 p-4">
+            <p className="text-sm font-medium text-purple-800 mb-1">预估开发周期</p>
+            <p className="text-purple-700 text-lg font-bold">{soloFeasibility.realistic_dev_time}</p>
+            <p className="text-purple-600 text-xs mt-1">{soloFeasibility.dev_time_reasoning}</p>
+          </div>
+        </section>
+      )}
 
       {breakdown && dimensions.length > 0 && (
         <section className="rounded-xl border border-gray-200 bg-white p-6">

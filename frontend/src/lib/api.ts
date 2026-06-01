@@ -36,6 +36,44 @@ export interface PainPoint {
   market_saturation: string | null;
   individual_score: number;
   opportunity_score: number;
+  // Deep analysis enrichment fields
+  demand_validation: string | null;
+  market_value_analysis: string | null;
+  implementation_plan: string | null;
+  solo_feasibility: string | null;
+  enriched_at: string | null;
+}
+
+export interface DemandValidation {
+  is_genuine_demand: boolean;
+  validation_reasoning: string;
+  evidence_from_sources: string;
+  frequency_analysis: string;
+  user_sentiment_intensity: string;
+}
+
+export interface MarketValueAnalysis {
+  market_size_estimate: string;
+  target_audience: string;
+  willingness_to_pay_evidence: string;
+  competition_landscape: string;
+  monetization_potential: string;
+}
+
+export interface ImplementationPlan {
+  mvp_scope: string;
+  technical_approach: string;
+  recommended_tech_stack: string[];
+  tech_stack_rationale: string;
+  go_to_market_strategy: string;
+  monetization_model: string;
+}
+
+export interface SoloFeasibility {
+  specific_barriers: string;
+  how_to_overcome: string;
+  realistic_dev_time: string;
+  dev_time_reasoning: string;
 }
 
 export interface PainScoreBreakdown {

@@ -13,6 +13,7 @@ from app.models.pain_score import PainScore
 from app.models.research_job import ResearchJob
 from app.schemas.research import ResearcherOutput
 from app.services.deduplicator import encode_texts, find_most_similar, is_duplicate
+from app.services.pain_point_enricher import enrich_pain_point
 from app.services.pain_scorer import calculate_pain_score, calculate_opportunity_score
 from app.services.rate_limiter import create_rate_limiter
 from app.services.researchers.firecrawl_search import FirecrawlResearcher
@@ -104,6 +105,9 @@ async def run_research(domain: str, platforms: list[str]) -> dict:
         if all_pain_points:
             new_count = _store_pain_points(all_pain_points, job.id, domain)
 
+        if new_count > 0:
+            await _enrich_pain_points(job.id)
+
         _complete_job(job.id, all_findings_count, new_count)
 
         return {
@@ -189,7 +193,11 @@ def _create_pain_point(db, pp_data: dict, job_id: int, domain: str) -> None:
     opp_score = calculate_opportunity_score(total, 0.5)
 
     source_info = json.dumps([
-        {"platform": pp_data.get("_platform", "unknown"), "title": pp_data.get("title", "")}
+        {
+            "platform": pp_data.get("_platform", "unknown"),
+            "title": pp_data.get("title", ""),
+            "snippet": (pp_data.get("summary", "") or "")[:500],
+        }
     ])
 
     pp = PainPoint(
@@ -280,5 +288,93 @@ def _fail_job(job_id: int, error: str) -> None:
             job.error_message = error
             job.completed_at = datetime.now(timezone.utc).isoformat()
             db.commit()
+    finally:
+        db.close()
+
+
+async def _enrich_pain_points(job_id: int) -> int:
+    db = SessionLocal()
+    try:
+        points = (
+            db.query(PainPoint)
+            .filter(PainPoint.research_job_id == job_id, PainPoint.enriched_at.is_(None))
+            .all()
+        )
+        if not points:
+            return 0
+
+        enriched = 0
+        for pp in points:
+            snippets = ""
+            try:
+                sources = json.loads(pp.source_post_ids or "[]")
+                parts = []
+                for s in sources:
+                    if isinstance(s, dict) and s.get("snippet"):
+                        parts.append(f"- {s.get('title', '')}: {s['snippet'][:300]}")
+                if parts:
+                    snippets = "\n".join(parts)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            result = await enrich_pain_point(
+                title=pp.title,
+                summary=pp.summary,
+                category=pp.category,
+                industry=pp.industry,
+                source_snippets=snippets or None,
+            )
+            if result is None:
+                continue
+
+            if result.get("demand_validation"):
+                pp.demand_validation = json.dumps(result["demand_validation"], ensure_ascii=False)
+            if result.get("market_value_analysis"):
+                pp.market_value_analysis = json.dumps(result["market_value_analysis"], ensure_ascii=False)
+            if result.get("implementation_plan"):
+                pp.implementation_plan = json.dumps(result["implementation_plan"], ensure_ascii=False)
+            if result.get("solo_feasibility"):
+                pp.solo_feasibility = json.dumps(result["solo_feasibility"], ensure_ascii=False)
+
+            scores = result.get("dimension_scores")
+            if scores and isinstance(scores, dict):
+                pp.market_saturation = scores.get("market_saturation") or pp.market_saturation
+                pp.individual_score = float(scores.get("individual_score", pp.individual_score))
+
+                ps = db.query(PainScore).filter(PainScore.pain_point_id == pp.id).first()
+                if ps:
+                    ps.emotion_intensity = float(scores.get("emotion_intensity", ps.emotion_intensity))
+                    ps.comment_volume = float(scores.get("comment_volume", ps.comment_volume))
+                    ps.repeat_frequency = float(scores.get("repeat_frequency", ps.repeat_frequency))
+                    ps.involves_money = float(scores.get("involves_money", ps.involves_money))
+                    ps.has_paid_solution = float(scores.get("has_paid_solution", ps.has_paid_solution))
+                    ps.automation_difficulty = float(scores.get("automation_difficulty", ps.automation_difficulty))
+                    ps.is_long_term = float(scores.get("is_long_term", ps.is_long_term))
+
+                    dims = {
+                        "emotion_intensity": ps.emotion_intensity,
+                        "comment_volume": ps.comment_volume,
+                        "repeat_frequency": ps.repeat_frequency,
+                        "involves_money": ps.involves_money,
+                        "has_paid_solution": ps.has_paid_solution,
+                        "automation_difficulty": ps.automation_difficulty,
+                        "is_long_term": ps.is_long_term,
+                    }
+                    ps.total_score = calculate_pain_score(dims)
+                    pp.pain_score = ps.total_score
+                    pp.opportunity_score = calculate_opportunity_score(
+                        ps.total_score, pp.individual_score / 10.0
+                    )
+
+            pp.enriched_at = datetime.now(timezone.utc).isoformat()
+            enriched += 1
+
+        db.commit()
+        logger.info("Enriched {} pain points for job {}", enriched, job_id)
+        return enriched
+    except Exception as e:
+        db.rollback()
+        logger.error("Enrichment failed for job {}: {}", job_id, e)
+        return 0
     finally:
         db.close()

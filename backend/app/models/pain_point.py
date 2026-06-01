@@ -31,3 +31,10 @@ class PainPoint(Base):
     individual_score = Column(Float, default=0.0)
     opportunity_score = Column(Float, default=0.0)
 
+    # Deep analysis enrichment fields (Phase 2)
+    demand_validation = Column(Text, nullable=True)
+    market_value_analysis = Column(Text, nullable=True)
+    implementation_plan = Column(Text, nullable=True)
+    solo_feasibility = Column(Text, nullable=True)
+    enriched_at = Column(Text, nullable=True)
+
