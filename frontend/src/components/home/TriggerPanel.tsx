@@ -7,7 +7,6 @@ const STEP_LABELS: Record<string, string> = {
   crawl_reddit: "Reddit 抓取",
   crawl_hn: "HN 抓取",
   analyze: "AI 分析",
-  report: "日报生成",
 };
 
 const STATUS_ICON: Record<string, string> = {
@@ -42,8 +41,6 @@ function stepSummary(step: StepStatus): string | null {
       return `抓取 ${r.posts_fetched ?? "?"} 条帖子`;
     case "analyze":
       return `处理 ${r.processed ?? "?"} 条，发现 ${r.new_pain_points ?? "?"} 个新痛点`;
-    case "report":
-      return `报告日期 ${r.report_date ?? "?"}，共 ${r.total ?? "?"} 个痛点`;
     default:
       return null;
   }

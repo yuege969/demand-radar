@@ -17,7 +17,6 @@ router = APIRouter()
 STEPS = [
     {"step": "crawl_all", "label": "全量抓取"},
     {"step": "analyze", "label": "AI 分析"},
-    {"step": "report", "label": "日报生成"},
 ]
 
 _crawl_state: dict = {
@@ -101,9 +100,6 @@ def _run_pipeline(start_step: str):
                 from app.services.pipeline import process_pending_posts
                 result = process_pending_posts()
 
-            elif step_name == "report":
-                from app.services.report_generator import generate_daily_report
-                result = generate_daily_report()
             else:
                 result = {}
 

@@ -15,25 +15,19 @@ async function fetchFromAPI<T>(path: string): Promise<T | null> {
 }
 
 export default async function HomePage() {
-  const [ppResult, reportResult] = await Promise.all([
-    fetchFromAPI<{ data: PainPoint[]; meta: { total: number } }>(
-      "/pain-points?per_page=10&sort_by=opportunity_score"
-    ),
-    fetchFromAPI<{ data: { stats: { new_pain_points: number } } }>(
-      "/daily-report"
-    ),
-  ]);
+  const ppResult = await fetchFromAPI<{
+    data: PainPoint[];
+    meta: { total: number };
+  }>("/pain-points?per_page=10&sort_by=opportunity_score");
 
   const painPoints = ppResult?.data ?? [];
 
   const total = ppResult?.meta?.total ?? painPoints.length;
-  const today =
-    reportResult?.data?.stats?.new_pain_points ?? 0;
 
   const stats = [
-    { label: "今日新增", value: String(today), color: "text-indigo-600" },
     { label: "累计需求", value: String(total), color: "text-emerald-600" },
     { label: "SaaS 机会", value: painPoints.filter((p) => p.is_saas_idea).length.toString(), color: "text-amber-600" },
+    { label: "可独立开发", value: painPoints.filter((p) => p.is_individual_feasible).length.toString(), color: "text-indigo-600" },
   ];
 
   return (

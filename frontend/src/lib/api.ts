@@ -73,20 +73,6 @@ export interface Post {
   processed: number;
 }
 
-export interface ReportSummary {
-  report_date: string;
-  summary: string;
-  top_pains: { id: number; title: string; pain_score: number }[];
-  new_pains: { id: number; title: string; pain_score: number }[];
-  stats: Record<string, unknown>;
-}
-
-export interface TrendPoint {
-  date: string;
-  total_posts_crawled: number;
-  new_pain_points: number;
-}
-
 export interface StepStatus {
   step: string;
   label: string;
@@ -124,14 +110,6 @@ export async function getPainPoints(params?: Record<string, string>): Promise<Ap
 
 export async function getPainPoint(id: number): Promise<ApiResponse<PainPointDetail>> {
   return fetchApi<PainPointDetail>(`/pain-points/${id}`);
-}
-
-export async function getDailyReport(date?: string): Promise<ApiResponse<ReportSummary>> {
-  return fetchApi<ReportSummary>("/daily-report", date ? { date } : undefined);
-}
-
-export async function getTrends(days?: number, category?: string): Promise<ApiResponse<TrendPoint[]>> {
-  return fetchApi<TrendPoint[]>("/trends", { days: String(days || 7), ...(category ? { category } : {}) });
 }
 
 export async function getCategories(): Promise<ApiResponse<{ categories: string[]; industries: string[] }>> {

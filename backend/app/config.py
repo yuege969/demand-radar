@@ -17,8 +17,6 @@ class Settings(BaseSettings):
 
     HTTP_PROXY: str = ""
 
-    REPORT_GENERATION_HOUR: int = 8
-
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     DEDUP_THRESHOLD: float = 0.85
 

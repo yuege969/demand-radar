@@ -31,7 +31,7 @@ def init_db() -> None:
     import app.models.comment  # noqa: F401
     import app.models.pain_point  # noqa: F401
     import app.models.pain_score  # noqa: F401
-    import app.models.daily_report  # noqa: F401
+
     import app.models.data_source  # noqa: F401
     import app.models.crawl_log  # noqa: F401
 

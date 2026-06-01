@@ -12,7 +12,6 @@ scheduler = BackgroundScheduler()
 def _scheduled_crawl() -> None:
     from app.services.crawler_registry import CrawlerRegistry
     from app.services.pipeline import process_pending_posts
-    from app.services.report_generator import generate_daily_report
 
     logger.info("Scheduled crawl job starting")
     db = SessionLocal()
@@ -31,8 +30,6 @@ def _scheduled_crawl() -> None:
         if total_new > 0:
             pipeline_result = process_pending_posts()
             logger.info("Pipeline result: {}", pipeline_result)
-
-        generate_daily_report()
     except Exception as e:
         logger.error("Scheduled crawl job failed: {}", e)
     finally:
@@ -46,18 +43,10 @@ def start_scheduler() -> None:
         minutes=settings.CRAWL_INTERVAL_MINUTES,
         id="crawl",
     )
-    scheduler.add_job(
-        lambda: __import__("app.services.report_generator", fromlist=["generate_daily_report"]).generate_daily_report(),
-        "cron",
-        hour=settings.REPORT_GENERATION_HOUR,
-        minute=7,
-        id="daily_report",
-    )
     scheduler.start()
     logger.info(
-        "Scheduler started: crawl every {}min, daily report at {:02d}:07",
+        "Scheduler started: crawl every {}min",
         settings.CRAWL_INTERVAL_MINUTES,
-        settings.REPORT_GENERATION_HOUR,
     )
 
 
