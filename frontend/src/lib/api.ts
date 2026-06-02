@@ -110,6 +110,7 @@ export interface ResearchJob {
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
+  is_enriching: boolean;
 }
 
 async function fetchApi<T>(endpoint: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
@@ -150,6 +151,14 @@ export async function getResearchJob(id: number): Promise<ApiResponse<ResearchJo
 
 export async function getResearchPainPoints(id: number, params?: Record<string, string>): Promise<ApiResponse<PainPoint[]>> {
   return fetchApi<PainPoint[]>(`/research/${id}/pain-points`, params);
+}
+
+export async function reEnrichJob(jobId: number): Promise<ApiResponse<{ message: string; enriched: number }>> {
+  const res = await fetch(`${API_URL}/research/${jobId}/re-enrich`, { method: "POST" });
+  if (!res.ok) {
+    return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };
+  }
+  return res.json();
 }
 
 export async function triggerResearch(domain: string, adminToken: string, platforms?: string[]): Promise<ApiResponse<unknown>> {

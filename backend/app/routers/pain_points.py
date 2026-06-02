@@ -10,6 +10,7 @@ from app.models.pain_point import PainPoint
 from app.models.pain_score import PainScore
 from app.schemas import ApiResponse, PaginationMeta
 from app.schemas.pain_point import PainPointOut, PainPointDetail, PainScoreBreakdown
+from app.services.research_orchestrator import _enrich_pain_points
 
 router = APIRouter()
 
@@ -64,7 +65,7 @@ def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
 @router.get("")
 def list_pain_points(
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=1000),
     category: str | None = None,
     industry: str | None = None,
     sort_by: str = Query("pain_score", pattern="^(pain_score|opportunity_score|created_at|updated_at)$"),
@@ -143,7 +144,7 @@ def search_all(
     q: str = Query(..., min_length=1),
     type: str = Query("all", pattern="^(all|posts|pain_points)$"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
     results = []
@@ -161,3 +162,26 @@ def search_all(
         data=results,
         meta=PaginationMeta(page=page, per_page=per_page, total=total).model_dump(),
     )
+
+
+@router.post("/re-enrich")
+async def re_enrich_pain_points(db: Session = Depends(get_db)):
+    """Re-run enrichment for all unenriched pain points."""
+    unenriched_count = db.query(PainPoint).filter(PainPoint.enriched_at.is_(None)).count()
+    if unenriched_count == 0:
+        return ApiResponse(data={"message": "All pain points are already enriched", "enriched": 0})
+
+    job_ids = [
+        row[0] for row in
+        db.query(PainPoint.research_job_id)
+        .filter(PainPoint.enriched_at.is_(None), PainPoint.research_job_id.isnot(None))
+        .distinct()
+        .all()
+    ]
+
+    enriched = 0
+    for job_id in job_ids:
+        result = await _enrich_pain_points(job_id)
+        enriched += result
+
+    return ApiResponse(data={"message": f"Enriched {enriched} pain points", "enriched": enriched})

@@ -6,6 +6,7 @@ import PainCard from "@/components/ui/PainCard";
 import {
   getResearchJob,
   getResearchPainPoints,
+  reEnrichJob,
   type ResearchJob,
   type PainPoint,
 } from "@/lib/api";
@@ -20,6 +21,7 @@ export default function ResearchDetailPage({
   const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [enrichMsg, setEnrichMsg] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +37,8 @@ export default function ResearchDetailPage({
       }
       setJob(jobRes.data);
 
-      if (jobRes.data.status === "completed" || jobRes.data.status === "failed") {
+      const isDone = jobRes.data.status === "completed" || jobRes.data.status === "failed";
+      if (isDone && !jobRes.data.is_enriching) {
         if (interval) {
           clearInterval(interval);
           interval = null;
@@ -96,6 +99,16 @@ export default function ResearchDetailPage({
     }
   };
 
+  async function handleReEnrich() {
+    setEnrichMsg("");
+    const res = await reEnrichJob(Number(id));
+    if (res.success) {
+      setEnrichMsg(res.data?.message || "");
+    } else {
+      setEnrichMsg(res.error || "请求失败");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -117,6 +130,24 @@ export default function ResearchDetailPage({
         >
           {statusLabel(job.status)}
         </span>
+        {job.status === "completed" && (
+          job.is_enriching ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              AI 分析中...
+            </span>
+          ) : (
+            <button
+              onClick={handleReEnrich}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+            >
+              重新 AI 分析
+            </button>
+          )
+        )}
+        {enrichMsg && (
+          <span className="text-xs text-gray-400">{enrichMsg}</span>
+        )}
       </div>
 
       <div className="flex gap-6 text-sm text-gray-500">

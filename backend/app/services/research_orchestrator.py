@@ -342,10 +342,12 @@ async def _enrich_pain_points(job_id: int) -> int:
                 pp.market_saturation = scores.get("market_saturation") or pp.market_saturation
                 pp.individual_score = float(scores.get("individual_score", pp.individual_score))
 
+                pp.is_individual_feasible = 1 if pp.individual_score >= 6.0 else 0
+
                 ps = db.query(PainScore).filter(PainScore.pain_point_id == pp.id).first()
                 if ps:
                     ps.emotion_intensity = float(scores.get("emotion_intensity", ps.emotion_intensity))
-                    ps.comment_volume = float(scores.get("comment_volume", ps.comment_volume))
+                    ps.discussion_volume = float(scores.get("comment_volume", ps.discussion_volume))
                     ps.repeat_frequency = float(scores.get("repeat_frequency", ps.repeat_frequency))
                     ps.involves_money = float(scores.get("involves_money", ps.involves_money))
                     ps.has_paid_solution = float(scores.get("has_paid_solution", ps.has_paid_solution))
@@ -354,7 +356,7 @@ async def _enrich_pain_points(job_id: int) -> int:
 
                     dims = {
                         "emotion_intensity": ps.emotion_intensity,
-                        "comment_volume": ps.comment_volume,
+                        "discussion_volume": ps.discussion_volume,
                         "repeat_frequency": ps.repeat_frequency,
                         "involves_money": ps.involves_money,
                         "has_paid_solution": ps.has_paid_solution,
@@ -366,6 +368,27 @@ async def _enrich_pain_points(job_id: int) -> int:
                     pp.opportunity_score = calculate_opportunity_score(
                         ps.total_score, pp.individual_score / 10.0
                     )
+
+            sf = result.get("solo_feasibility")
+            if sf and isinstance(sf, dict):
+                if not pp.feasibility_reason and sf.get("how_to_overcome"):
+                    pp.feasibility_reason = sf["how_to_overcome"]
+                if not pp.estimated_dev_time and sf.get("realistic_dev_time"):
+                    raw_time = sf["realistic_dev_time"]
+                    colon = raw_time.find("：") if "：" in raw_time else raw_time.find(":")
+                    pp.estimated_dev_time = raw_time[:colon] if colon > 0 else raw_time[:30]
+
+            ip = result.get("implementation_plan")
+            if ip and isinstance(ip, dict):
+                if not pp.tech_stack_hints and ip.get("recommended_tech_stack"):
+                    pp.tech_stack_hints = json.dumps(ip["recommended_tech_stack"], ensure_ascii=False)
+
+            mva = result.get("market_value_analysis")
+            if mva and isinstance(mva, dict):
+                target = mva.get("target_audience", "")
+                business = pp.business_angle or ""
+                pp.is_saas_idea = 1 if ("saas" in (pp.category or "").lower() or "subscription" in (business + target).lower()) else pp.is_saas_idea
+                pp.is_plugin_idea = 1 if ("plugin" in (pp.category or "").lower() or "插件" in (business + target)) else pp.is_plugin_idea
 
             pp.enriched_at = datetime.now(timezone.utc).isoformat()
             enriched += 1

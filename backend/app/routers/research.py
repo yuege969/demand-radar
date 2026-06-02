@@ -19,6 +19,7 @@ router = APIRouter()
 
 _DOMAIN_PATTERN = re.compile(r"^[\w一-鿿\s\-.,&+()]+$")
 _DOMAIN_MAX_LENGTH = 100
+_enriching_jobs: set[int] = set()
 
 
 def _sanitize_domain(raw: str) -> str:
@@ -76,6 +77,7 @@ def _job_to_dict(job: ResearchJob) -> dict:
         "error_message": job.error_message,
         "created_at": job.created_at,
         "completed_at": job.completed_at,
+        "is_enriching": job.id in _enriching_jobs,
     }
 
 
@@ -145,3 +147,39 @@ def get_research_pain_points(
         data=[_to_pain_point_out(p) for p in points],
         meta=PaginationMeta(page=page, per_page=per_page, total=total).model_dump(),
     )
+
+
+def _run_enrich_sync(job_id: int):
+    _enriching_jobs.add(job_id)
+    try:
+        from app.services.research_orchestrator import _enrich_pain_points
+
+        asyncio.run(_enrich_pain_points(job_id))
+    except Exception as e:
+        logger.error("Re-enrich job {} failed: {}", job_id, e)
+    finally:
+        _enriching_jobs.discard(job_id)
+
+
+@router.post("/{job_id}/re-enrich")
+def re_enrich_job(job_id: int, background_tasks: BackgroundTasks):
+    if job_id in _enriching_jobs:
+        raise HTTPException(status_code=409, detail="Re-enrich already in progress for this job")
+
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        count = (
+            db.query(PainPoint)
+            .filter(PainPoint.research_job_id == job_id, PainPoint.enriched_at.is_(None))
+            .count()
+        )
+    finally:
+        db.close()
+
+    if count == 0:
+        return ApiResponse(data={"message": "No unenriched pain points", "enriched": 0})
+
+    background_tasks.add_task(_run_enrich_sync, job_id)
+    return ApiResponse(data={"message": f"Re-enrich started ({count} pain points queued)", "enriched": 0})
