@@ -43,6 +43,10 @@ const DEMO_PAIN_POINTS: PainPoint[] = [
     market_value_analysis: null,
     implementation_plan: null,
     solo_feasibility: null,
+    snapshot_summary: null,
+    snapshot_opportunity: null,
+    snapshot_at: null,
+    enrichment_data: null,
     enriched_at: null,
   },
   {
@@ -72,6 +76,10 @@ const DEMO_PAIN_POINTS: PainPoint[] = [
     market_value_analysis: null,
     implementation_plan: null,
     solo_feasibility: null,
+    snapshot_summary: null,
+    snapshot_opportunity: null,
+    snapshot_at: null,
+    enrichment_data: null,
     enriched_at: null,
   },
   {
@@ -101,6 +109,10 @@ const DEMO_PAIN_POINTS: PainPoint[] = [
     market_value_analysis: null,
     implementation_plan: null,
     solo_feasibility: null,
+    snapshot_summary: null,
+    snapshot_opportunity: null,
+    snapshot_at: null,
+    enrichment_data: null,
     enriched_at: null,
   },
 ];

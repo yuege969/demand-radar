@@ -36,8 +36,30 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created from ORM models")
 
+    _migrate_pain_points(engine)
+
     inspector = inspect(engine)
     logger.info("Database ready — tables: {}", inspector.get_table_names())
+
+
+def _migrate_pain_points(eng) -> None:
+    """Add new columns to existing pain_points table (SQLite-safe)."""
+    from sqlalchemy import text
+
+    new_columns = [
+        ("snapshot_summary", "TEXT"),
+        ("snapshot_opportunity", "TEXT"),
+        ("snapshot_at", "TEXT"),
+        ("enrichment_data", "TEXT"),
+    ]
+    with eng.connect() as conn:
+        for col_name, col_type in new_columns:
+            try:
+                conn.execute(text(f"ALTER TABLE pain_points ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+                logger.info("Added column pain_points.{}", col_name)
+            except Exception:
+                pass
 
 
 def get_db():

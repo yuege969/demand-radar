@@ -40,6 +40,8 @@ function MarketBadge({ saturation }: { saturation: string | null }) {
 }
 
 export default function PainCard({ painPoint }: { painPoint: PainPoint }) {
+  const displaySummary = painPoint.snapshot_summary || painPoint.summary;
+
   return (
     <Link
       href={`/pain-points/${painPoint.id}`}
@@ -56,22 +58,25 @@ export default function PainCard({ painPoint }: { painPoint: PainPoint }) {
           )}
         </div>
       </div>
-      <p className="mt-2 text-sm text-gray-600 line-clamp-3">{painPoint.summary}</p>
+
+      <p className="mt-2 text-sm text-gray-700 line-clamp-3 leading-relaxed">{displaySummary}</p>
+
+      {painPoint.snapshot_opportunity && (
+        <div className="mt-3 rounded-lg bg-white/60 border border-gray-100 p-3">
+          <p className="text-xs font-medium text-amber-700 mb-1">产品机会</p>
+          <p className="text-sm text-amber-800 line-clamp-2">{painPoint.snapshot_opportunity}</p>
+        </div>
+      )}
+
       <div className="mt-3 flex flex-wrap gap-1.5">
         <FeasibilityBadge painPoint={painPoint} />
-        {painPoint.estimated_dev_time && (
-          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 max-w-[180px] truncate">
-            {painPoint.estimated_dev_time}
-          </span>
-        )}
         {painPoint.market_saturation && <MarketBadge saturation={painPoint.market_saturation} />}
         {painPoint.category && <Badge label={painPoint.category} variant="category" />}
         {painPoint.industry && <Badge label={painPoint.industry} variant="industry" />}
-        {painPoint.is_saas_idea && <Badge label="SaaS" variant="saas" />}
-        {painPoint.is_plugin_idea && <Badge label="插件" variant="plugin" />}
-        <span className="ml-auto text-xs text-gray-400">
-          {painPoint.source_count} 来源
-        </span>
+        {painPoint.snapshot_at && (
+          <span className="ml-auto text-xs text-gray-400">AI 分析</span>
+        )}
+        <span className="text-xs text-gray-400">{painPoint.source_count} 来源</span>
       </div>
     </Link>
   );

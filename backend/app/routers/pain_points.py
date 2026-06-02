@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from loguru import logger
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -54,6 +58,10 @@ def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
         market_saturation=pp.market_saturation,
         individual_score=pp.individual_score or 0.0,
         opportunity_score=pp.opportunity_score or 0.0,
+        snapshot_summary=pp.snapshot_summary,
+        snapshot_opportunity=pp.snapshot_opportunity,
+        snapshot_at=pp.snapshot_at,
+        enrichment_data=pp.enrichment_data,
         demand_validation=pp.demand_validation,
         market_value_analysis=pp.market_value_analysis,
         implementation_plan=pp.implementation_plan,
@@ -185,3 +193,146 @@ async def re_enrich_pain_points(db: Session = Depends(get_db)):
         enriched += result
 
     return ApiResponse(data={"message": f"Enriched {enriched} pain points", "enriched": enriched})
+
+
+class EnrichRequest(BaseModel):
+    modules: list[str]
+
+
+_enriching_points: set[int] = set()
+
+
+@router.get("/{pain_point_id}/enrich/modules")
+def get_enrich_modules(pain_point_id: int, db: Session = Depends(get_db)):
+    pp = db.query(PainPoint).filter(PainPoint.id == pain_point_id).first()
+    if not pp:
+        raise HTTPException(status_code=404, detail="Pain point not found")
+
+    from app.services.enrichment_modules import get_pillars
+
+    pillars = get_pillars()
+    enrichment = {}
+    if pp.enrichment_data:
+        try:
+            enrichment = json.loads(pp.enrichment_data)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    result = []
+    for pillar in pillars:
+        pillar_modules = []
+        for m in pillar["modules"]:
+            completed = m.key in enrichment
+            pillar_modules.append({
+                "key": m.key,
+                "display_name": m.display_name,
+                "description": m.description,
+                "completed": completed,
+                "output_fields": m.output_fields,
+            })
+        result.append({
+            "key": pillar["key"],
+            "display_name": pillar["display_name"],
+            "description": pillar["description"],
+            "modules": pillar_modules,
+        })
+
+    return ApiResponse(data=result)
+
+
+def _run_module_enrich_sync(pain_point_id: int, module_keys: list[str]):
+    from app.database import SessionLocal
+    from app.services.pain_point_enricher import enrich_module
+
+    db = SessionLocal()
+    try:
+        pp = db.query(PainPoint).filter(PainPoint.id == pain_point_id).first()
+        if not pp:
+            return
+
+        enrichment = {}
+        if pp.enrichment_data:
+            try:
+                enrichment = json.loads(pp.enrichment_data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        now = datetime.now(timezone.utc).isoformat()
+        for module_key in module_keys:
+            if module_key in enrichment:
+                continue
+
+            try:
+                result = asyncio.run(enrich_module(
+                    module_key=module_key,
+                    title=pp.title,
+                    summary=pp.summary,
+                    category=pp.category,
+                    industry=pp.industry,
+                    source_snippets=_extract_snippets_inline(pp),
+                ))
+            except Exception as e:
+                logger.error("Module {} enrichment failed for pp {}: {}", module_key, pain_point_id, e)
+                continue
+
+            if result is not None:
+                enrichment[module_key] = {"completed_at": now, "result": result}
+
+        pp.enrichment_data = json.dumps(enrichment, ensure_ascii=False)
+        pp.updated_at = now
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Enrichment sync failed for pp {}: {}", pain_point_id, e)
+    finally:
+        db.close()
+        _enriching_points.discard(pain_point_id)
+
+
+def _extract_snippets_inline(pp: PainPoint) -> str:
+    try:
+        sources = json.loads(pp.source_urls or "[]")
+        parts = []
+        for s in sources:
+            if isinstance(s, dict) and s.get("snippet"):
+                parts.append(f"- {s.get('title', '')}: {s['snippet'][:300]}")
+        return "\n".join(parts) if parts else ""
+    except (json.JSONDecodeError, TypeError):
+        return ""
+
+
+@router.post("/{pain_point_id}/enrich")
+def trigger_enrich(
+    pain_point_id: int,
+    body: EnrichRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    pp = db.query(PainPoint).filter(PainPoint.id == pain_point_id).first()
+    if not pp:
+        raise HTTPException(status_code=404, detail="Pain point not found")
+
+    if pain_point_id in _enriching_points:
+        raise HTTPException(status_code=409, detail="Enrichment already in progress for this pain point")
+
+    from app.services.enrichment_modules import get_module_map
+
+    valid_keys = set(get_module_map().keys())
+    selected = [k for k in body.modules if k in valid_keys]
+    if not selected:
+        raise HTTPException(status_code=400, detail="No valid modules selected")
+
+    # Skip already-completed modules
+    enrichment = {}
+    if pp.enrichment_data:
+        try:
+            enrichment = json.loads(pp.enrichment_data)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    pending = [k for k in selected if k not in enrichment]
+    if not pending:
+        return ApiResponse(data={"message": "All selected modules already completed", "enriched": 0, "pending": []})
+
+    _enriching_points.add(pain_point_id)
+    background_tasks.add_task(_run_module_enrich_sync, pain_point_id, pending)
+    return ApiResponse(data={"message": f"Enrichment started for {len(pending)} modules", "pending": pending})

@@ -8,6 +8,19 @@ from openai import OpenAI
 
 from app.config import settings
 
+SNAPSHOT_PROMPT = """你是一个市场需求分析专家。请用简洁的语言提炼下面这个用户痛点，并给出个人开发者的产品机会。
+
+重要：你的整个回复必须是纯 JSON 对象，不要有任何 markdown 标记或代码块。
+
+{
+  "summary": "痛点一句话概述（30字以内），提炼核心问题",
+  "opportunity": "个人开发者可以做什么产品来解决这个痛点（50-80字），给出1-2个具体的产品方向"
+}
+
+要求：
+- summary 要精炼，让人一眼看懂这个需求是什么
+- opportunity 要具体可执行，不是泛泛而谈，要给出明确的产品形态建议"""
+
 ENRICHMENT_PROMPT = """你是一个市场需求分析专家。请分析下面这个用户痛点，输出完整的结构化分析报告。
 
 重要：你的整个回复必须是纯 JSON 对象，不要有任何解释、思考过程、markdown 标记或代码块。直接输出 JSON。
@@ -201,3 +214,94 @@ async def enrich_pain_point(
     except Exception as e:
         logger.error("Enrichment LLM call failed: {}", e)
         return None
+
+
+async def _call_llm(system_prompt: str, user_content: str, max_tokens: int = 4096) -> dict | None:
+    if not settings.LLM_API_KEY:
+        logger.warning("LLM_API_KEY not configured")
+        return None
+
+    client = OpenAI(api_key=settings.LLM_API_KEY, base_url=settings.LLM_API_BASE)
+
+    try:
+        response = client.chat.completions.create(
+            model=settings.LLM_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=max_tokens,
+            temperature=0.3,
+        )
+
+        finish = response.choices[0].finish_reason
+        if finish == "length":
+            logger.warning("LLM response truncated (finish_reason=length)")
+
+        text = response.choices[0].message.content or ""
+        text = _strip_formatting(text)
+        result = _parse_json(text)
+
+        if result is None:
+            logger.error("Failed to parse LLM JSON (finish_reason={}): {}", finish, text[:500])
+            return None
+
+        return result
+
+    except Exception as e:
+        logger.error("LLM call failed: {}", e)
+        return None
+
+
+def _build_user_prompt(
+    title: str,
+    summary: str,
+    category: str | None = None,
+    industry: str | None = None,
+    source_snippets: str | None = None,
+) -> str:
+    parts = [
+        "请分析以下用户痛点：",
+        "",
+        f"标题：{title}",
+        f"摘要：{summary}",
+    ]
+    if category:
+        parts.append(f"分类：{category}")
+    if industry:
+        parts.append(f"行业：{industry}")
+    if source_snippets:
+        parts.append("")
+        parts.append("相关来源内容：")
+        parts.append(source_snippets)
+    return "\n".join(parts)
+
+
+async def enrich_snapshot(
+    title: str,
+    summary: str,
+    category: str | None = None,
+    industry: str | None = None,
+    source_snippets: str | None = None,
+) -> dict | None:
+    user_content = _build_user_prompt(title, summary, category, industry, source_snippets)
+    return await _call_llm(SNAPSHOT_PROMPT, user_content, max_tokens=512)
+
+
+async def enrich_module(
+    module_key: str,
+    title: str,
+    summary: str,
+    category: str | None = None,
+    industry: str | None = None,
+    source_snippets: str | None = None,
+) -> dict | None:
+    from app.services.enrichment_modules import get_module
+
+    module = get_module(module_key)
+    if module is None:
+        logger.error("Unknown enrichment module: {}", module_key)
+        return None
+
+    user_content = _build_user_prompt(title, summary, category, industry, source_snippets)
+    return await _call_llm(module.system_prompt, user_content, max_tokens=4096)

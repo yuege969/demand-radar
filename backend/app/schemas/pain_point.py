@@ -28,7 +28,13 @@ class PainPointOut(BaseModel):
     market_saturation: Optional[str] = None
     individual_score: float = 0.0
     opportunity_score: float = 0.0
-    # Deep analysis enrichment fields
+    # Snapshot enrichment (lightweight, auto-generated)
+    snapshot_summary: Optional[str] = None
+    snapshot_opportunity: Optional[str] = None
+    snapshot_at: Optional[str] = None
+    # On-demand modular deep analysis (JSON)
+    enrichment_data: Optional[str] = None
+    # Legacy deep analysis fields (kept for backward compatibility)
     demand_validation: Optional[str] = None
     market_value_analysis: Optional[str] = None
     implementation_plan: Optional[str] = None

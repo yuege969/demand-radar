@@ -36,12 +36,33 @@ export interface PainPoint {
   market_saturation: string | null;
   individual_score: number;
   opportunity_score: number;
-  // Deep analysis enrichment fields
+  // Snapshot enrichment (lightweight, auto-generated)
+  snapshot_summary: string | null;
+  snapshot_opportunity: string | null;
+  snapshot_at: string | null;
+  // On-demand modular deep analysis (JSON)
+  enrichment_data: string | null;
+  // Legacy deep analysis fields
   demand_validation: string | null;
   market_value_analysis: string | null;
   implementation_plan: string | null;
   solo_feasibility: string | null;
   enriched_at: string | null;
+}
+
+export interface EnrichmentModuleInfo {
+  key: string;
+  display_name: string;
+  description: string;
+  completed: boolean;
+  output_fields: string[];
+}
+
+export interface EnrichmentPillar {
+  key: string;
+  display_name: string;
+  description: string;
+  modules: EnrichmentModuleInfo[];
 }
 
 export interface DemandValidation {
@@ -167,6 +188,25 @@ export async function triggerResearch(domain: string, adminToken: string, platfo
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Admin-Token": adminToken },
     body: JSON.stringify({ domain, platforms: platforms || ["web"] }),
+  });
+  if (!res.ok) {
+    return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };
+  }
+  return res.json();
+}
+
+export async function getEnrichmentModules(painPointId: number): Promise<ApiResponse<EnrichmentPillar[]>> {
+  return fetchApi<EnrichmentPillar[]>(`/pain-points/${painPointId}/enrich/modules`);
+}
+
+export async function enrichPainPoint(
+  painPointId: number,
+  modules: string[]
+): Promise<ApiResponse<{ message: string; pending: string[]; enriched?: number }>> {
+  const res = await fetch(`${API_URL}/pain-points/${painPointId}/enrich`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modules }),
   });
   if (!res.ok) {
     return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };

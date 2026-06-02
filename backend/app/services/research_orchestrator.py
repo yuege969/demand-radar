@@ -13,7 +13,7 @@ from app.models.pain_score import PainScore
 from app.models.research_job import ResearchJob
 from app.schemas.research import ResearcherOutput
 from app.services.deduplicator import encode_texts, find_most_similar, is_duplicate
-from app.services.pain_point_enricher import enrich_pain_point
+from app.services.pain_point_enricher import enrich_pain_point, enrich_snapshot
 from app.services.pain_scorer import calculate_pain_score, calculate_opportunity_score
 from app.services.rate_limiter import create_rate_limiter
 from app.services.researchers.firecrawl_search import FirecrawlResearcher
@@ -108,7 +108,7 @@ async def run_research(domain: str, platforms: list[str], job_id: int | None = N
             new_count = _store_pain_points(all_pain_points, job_id, domain)
 
         if new_count > 0:
-            await _enrich_pain_points(job_id)
+            await _snapshot_pain_points(job_id)
 
         _complete_job(job_id, all_findings_count, new_count)
 
@@ -293,6 +293,59 @@ def _fail_job(job_id: int, error: str) -> None:
         db.close()
 
 
+async def _snapshot_pain_points(job_id: int) -> int:
+    """Run lightweight snapshot enrichment for all pain points in a job."""
+    db = SessionLocal()
+    try:
+        points = (
+            db.query(PainPoint)
+            .filter(PainPoint.research_job_id == job_id, PainPoint.snapshot_at.is_(None))
+            .all()
+        )
+        if not points:
+            return 0
+
+        enriched = 0
+        for pp in points:
+            snippets = _extract_snippets(pp)
+            result = await enrich_snapshot(
+                title=pp.title,
+                summary=pp.summary,
+                category=pp.category,
+                industry=pp.industry,
+                source_snippets=snippets or None,
+            )
+            if result is None:
+                continue
+
+            pp.snapshot_summary = result.get("summary") or pp.snapshot_summary
+            pp.snapshot_opportunity = result.get("opportunity") or pp.snapshot_opportunity
+            pp.snapshot_at = datetime.now(timezone.utc).isoformat()
+            enriched += 1
+
+        db.commit()
+        logger.info("Snapshot enriched {} pain points for job {}", enriched, job_id)
+        return enriched
+    except Exception as e:
+        db.rollback()
+        logger.error("Snapshot enrichment failed for job {}: {}", job_id, e)
+        return 0
+    finally:
+        db.close()
+
+
+def _extract_snippets(pp: PainPoint) -> str:
+    try:
+        sources = json.loads(pp.source_urls or "[]")
+        parts = []
+        for s in sources:
+            if isinstance(s, dict) and s.get("snippet"):
+                parts.append(f"- {s.get('title', '')}: {s['snippet'][:300]}")
+        return "\n".join(parts) if parts else ""
+    except (json.JSONDecodeError, TypeError):
+        return ""
+
+
 async def _enrich_pain_points(job_id: int) -> int:
     db = SessionLocal()
     try:
@@ -306,17 +359,7 @@ async def _enrich_pain_points(job_id: int) -> int:
 
         enriched = 0
         for pp in points:
-            snippets = ""
-            try:
-                sources = json.loads(pp.source_urls or "[]")
-                parts = []
-                for s in sources:
-                    if isinstance(s, dict) and s.get("snippet"):
-                        parts.append(f"- {s.get('title', '')}: {s['snippet'][:300]}")
-                if parts:
-                    snippets = "\n".join(parts)
-            except (json.JSONDecodeError, TypeError):
-                pass
+            snippets = _extract_snippets(pp)
 
             result = await enrich_pain_point(
                 title=pp.title,

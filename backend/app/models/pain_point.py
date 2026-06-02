@@ -30,7 +30,15 @@ class PainPoint(Base):
     individual_score = Column(Float, default=0.0)
     opportunity_score = Column(Float, default=0.0)
 
-    # Deep analysis enrichment fields (Phase 2)
+    # Snapshot enrichment (lightweight, auto-generated after research)
+    snapshot_summary = Column(Text, nullable=True)
+    snapshot_opportunity = Column(Text, nullable=True)
+    snapshot_at = Column(Text, nullable=True)
+
+    # On-demand modular deep analysis results (JSON)
+    enrichment_data = Column(Text, nullable=True)
+
+    # Legacy deep analysis fields — kept for backward compatibility
     demand_validation = Column(Text, nullable=True)
     market_value_analysis = Column(Text, nullable=True)
     implementation_plan = Column(Text, nullable=True)
