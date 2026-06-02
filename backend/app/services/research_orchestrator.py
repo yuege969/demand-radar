@@ -81,8 +81,10 @@ def _map_dimensions(pp: dict) -> dict:
     }
 
 
-async def run_research(domain: str, platforms: list[str]) -> dict:
-    job = _create_job(domain, platforms)
+async def run_research(domain: str, platforms: list[str], job_id: int | None = None) -> dict:
+    if job_id is None:
+        job = _create_job(domain, platforms)
+        job_id = job.id
 
     try:
         results = await _run_researchers(domain, platforms)
@@ -103,15 +105,15 @@ async def run_research(domain: str, platforms: list[str]) -> dict:
 
         new_count = 0
         if all_pain_points:
-            new_count = _store_pain_points(all_pain_points, job.id, domain)
+            new_count = _store_pain_points(all_pain_points, job_id, domain)
 
         if new_count > 0:
-            await _enrich_pain_points(job.id)
+            await _enrich_pain_points(job_id)
 
-        _complete_job(job.id, all_findings_count, new_count)
+        _complete_job(job_id, all_findings_count, new_count)
 
         return {
-            "job_id": job.id,
+            "job_id": job_id,
             "domain": domain,
             "platforms": platforms,
             "total_findings": all_findings_count,
@@ -119,8 +121,8 @@ async def run_research(domain: str, platforms: list[str]) -> dict:
         }
 
     except Exception as e:
-        logger.error("Research job {} failed: {}", job.id, e)
-        _fail_job(job.id, str(e))
+        logger.error("Research job {} failed: {}", job_id, e)
+        _fail_job(job_id, str(e))
         raise
 
 
@@ -306,7 +308,7 @@ async def _enrich_pain_points(job_id: int) -> int:
         for pp in points:
             snippets = ""
             try:
-                sources = json.loads(pp.source_post_ids or "[]")
+                sources = json.loads(pp.source_urls or "[]")
                 parts = []
                 for s in sources:
                     if isinstance(s, dict) and s.get("snippet"):

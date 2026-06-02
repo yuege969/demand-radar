@@ -220,19 +220,24 @@ export default function PainPointDetailPage() {
           <p className="text-xs text-gray-500 mb-4">机会分 = 痛点强度 &times; 0.4 + 个人可行性 &times; 0.6</p>
           <div className="space-y-3">
             {dimensions.map((d) => {
-              const val = (breakdown as unknown as Record<string, number>)[d.key] ?? 0;
+              const raw = (breakdown as unknown as Record<string, number>)[d.key] ?? 0;
+              const isReversed = d.key === "automation_difficulty";
+              const displayVal = isReversed ? 10 - raw : raw;
+              const contrib = displayVal * d.w;
               return (
                 <div key={d.key}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">{d.label}</span>
                     <span className="text-gray-500">
-                      {val.toFixed(1)} &times; {d.w.toFixed(2)} = {(val * d.w).toFixed(2)}
+                      {isReversed
+                        ? `(10 - ${raw.toFixed(1)}) × ${d.w.toFixed(2)} = ${contrib.toFixed(2)}`
+                        : `${raw.toFixed(1)} × ${d.w.toFixed(2)} = ${contrib.toFixed(2)}`}
                     </span>
                   </div>
                   <div className="h-2 rounded-full bg-gray-100">
                     <div
                       className="h-2 rounded-full bg-indigo-500 transition-all"
-                      style={{ width: `${(val / 10) * 100}%` }}
+                      style={{ width: `${(displayVal / 10) * 100}%` }}
                     />
                   </div>
                 </div>

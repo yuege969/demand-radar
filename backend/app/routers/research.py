@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import threading
+import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -17,19 +17,52 @@ from app.schemas import ApiResponse, PaginationMeta
 
 router = APIRouter()
 
+_DOMAIN_PATTERN = re.compile(r"^[\w一-鿿\s\-.,&+()]+$")
+_DOMAIN_MAX_LENGTH = 100
+
+
+def _sanitize_domain(raw: str) -> str:
+    cleaned = raw.strip()
+    if len(cleaned) > _DOMAIN_MAX_LENGTH:
+        cleaned = cleaned[:_DOMAIN_MAX_LENGTH]
+    if not cleaned or not _DOMAIN_PATTERN.match(cleaned):
+        raise HTTPException(status_code=400, detail="Domain contains invalid characters")
+    return cleaned
+
 
 class ResearchRequest(BaseModel):
     domain: str
     platforms: list[str] = ["web"]
 
 
-def _run_research_in_thread(domain: str, platforms: list[str]):
+def _create_job(domain: str, platforms: list[str]) -> ResearchJob:
+    from datetime import datetime, timezone
+
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        job = ResearchJob(
+            domain=domain,
+            platforms=json.dumps(platforms),
+            status="running",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        return job
+    finally:
+        db.close()
+
+
+def _run_research_sync(job_id: int, domain: str, platforms: list[str]):
     try:
         from app.services.research_orchestrator import run_research
 
-        asyncio.run(run_research(domain, platforms))
+        asyncio.run(run_research(domain, platforms, job_id=job_id))
     except Exception as e:
-        logger.error("Research thread failed: {}", e)
+        logger.error("Research job {} failed: {}", job_id, e)
 
 
 def _job_to_dict(job: ResearchJob) -> dict:
@@ -49,15 +82,13 @@ def _job_to_dict(job: ResearchJob) -> dict:
 @router.post("")
 def create_research(
     body: ResearchRequest,
+    background_tasks: BackgroundTasks,
     _token: str = Depends(verify_admin_token),
 ):
-    thread = threading.Thread(
-        target=_run_research_in_thread,
-        args=(body.domain, body.platforms),
-        daemon=True,
-    )
-    thread.start()
-    return ApiResponse(data={"message": "Research started", "domain": body.domain})
+    domain = _sanitize_domain(body.domain)
+    job = _create_job(domain, body.platforms)
+    background_tasks.add_task(_run_research_sync, job.id, domain, body.platforms)
+    return ApiResponse(data={"job_id": job.id, "message": "Research started", "domain": domain})
 
 
 @router.get("")

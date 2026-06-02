@@ -22,8 +22,12 @@ export default function ResearchDetailPage({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
     async function load() {
       const jobRes = await getResearchJob(Number(id));
+      if (cancelled) return;
       if (!jobRes.success || !jobRes.data) {
         setError("研究任务未找到");
         setLoading(false);
@@ -31,18 +35,33 @@ export default function ResearchDetailPage({
       }
       setJob(jobRes.data);
 
+      if (jobRes.data.status === "completed" || jobRes.data.status === "failed") {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      }
+
       const ppRes = await getResearchPainPoints(Number(id), {
         per_page: "50",
       });
+      if (cancelled) return;
       if (ppRes.success && ppRes.data) {
         setPainPoints(ppRes.data);
       }
       setLoading(false);
     }
-    load();
 
-    const interval = setInterval(load, 3000);
-    return () => clearInterval(interval);
+    load();
+    interval = setInterval(() => {
+      if (cancelled) return;
+      load();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
   }, [id]);
 
   if (loading) {
@@ -112,16 +131,47 @@ export default function ResearchDetailPage({
       </div>
 
       {job.status === "running" && (
-        <div className="text-center py-8">
-          <div className="animate-pulse text-gray-400">
+        <div className="text-center py-8 space-y-4">
+          <div className="animate-pulse text-gray-400 text-lg">
             正在搜索和分析，请稍候...
+          </div>
+          <div className="flex justify-center gap-3">
+            {[
+              { label: "搜索中", active: true },
+              { label: "提取中", active: job.total_findings > 0 },
+              { label: "富化中", active: job.pain_points_extracted > 0 },
+              { label: "完成", active: false },
+            ].map((stage) => (
+              <span
+                key={stage.label}
+                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                  stage.active
+                    ? "bg-indigo-100 text-indigo-700"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                {stage.active && (
+                  <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                )}
+                {stage.label}
+              </span>
+            ))}
           </div>
         </div>
       )}
 
       {job.status === "failed" && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          研究失败: {job.error_message || "未知错误"}
+          <p className="font-medium">研究失败</p>
+          <p className="mt-1 text-red-600">
+            {job.error_message || "未知错误，请稍后重试"}
+          </p>
+          <a
+            href="/"
+            className="inline-block mt-3 text-sm text-indigo-600 hover:underline"
+          >
+            返回首页重新开始
+          </a>
         </div>
       )}
 

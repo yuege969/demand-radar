@@ -19,8 +19,10 @@ from app.routers import api_router
 async def lifespan(app: FastAPI):
     logger.info("Starting Demand Radar backend...")
 
+    from app.auth import ensure_token_configured
     from app.database import init_db
 
+    ensure_token_configured()
     await asyncio.to_thread(init_db)
 
     from app.services.deduplicator import preload_model

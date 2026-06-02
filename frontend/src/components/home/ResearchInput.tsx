@@ -1,18 +1,28 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   triggerResearch,
   getResearchJobs,
   type ResearchJob,
 } from "@/lib/api";
 
+const TOKEN_STORAGE_KEY = "demand-radar-admin-token";
+
 export default function ResearchInput() {
+  const router = useRouter();
   const [domain, setDomain] = useState("");
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [jobs, setJobs] = useState<ResearchJob[]>([]);
+  const [showToken, setShowToken] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (saved) setToken(saved);
+  }, []);
 
   const fetchJobs = useCallback(async () => {
     const res = await getResearchJobs({ per_page: "5" });
@@ -35,12 +45,20 @@ export default function ResearchInput() {
     try {
       const res = await triggerResearch(
         domain.trim(),
-        token.trim() || "dev-token-123"
+        token.trim()
       );
-      if (res.success) {
-        setMessage("研究已启动，请稍后刷新查看结果");
+      if (res.success && res.data) {
+        const data = res.data as { job_id?: number };
+        if (token.trim()) {
+          localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
+        }
         setDomain("");
-        setTimeout(() => fetchJobs(), 3000);
+        if (data.job_id) {
+          router.push(`/research/${data.job_id}`);
+        } else {
+          setMessage("研究已启动，请稍后刷新查看结果");
+          setTimeout(() => fetchJobs(), 3000);
+        }
       } else {
         setMessage(res.error || "启动失败");
       }
@@ -102,13 +120,23 @@ export default function ResearchInput() {
             {loading ? "启动中..." : "开始研究"}
           </button>
         </div>
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="Admin Token（默认 dev-token-123）"
-          className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 focus:border-gray-300 outline-none"
-        />
+
+        <button
+          type="button"
+          onClick={() => setShowToken(!showToken)}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          {showToken ? "隐藏" : "设置"} Admin Token
+        </button>
+        {showToken && (
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="输入 Admin Token"
+            className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 focus:border-gray-300 outline-none"
+          />
+        )}
         {message && <p className="text-sm text-gray-600">{message}</p>}
       </form>
 

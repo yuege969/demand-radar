@@ -16,16 +16,16 @@ export function toDisplayScore(opportunityScore: number, painScore: number): num
 }
 
 export function scoreColor(score: number): string {
-  // 0-100 scale: >70 high, >50 medium, >30 low, rest minimal
-  if (score >= 70) return "text-red-500";
+  // High score = warm/amber (good opportunity), low = cool/gray
+  if (score >= 70) return "text-amber-600";
   if (score >= 50) return "text-orange-500";
-  if (score >= 30) return "text-yellow-500";
-  return "text-green-500";
+  if (score >= 30) return "text-yellow-600";
+  return "text-gray-400";
 }
 
 export function scoreBgColor(score: number): string {
-  if (score >= 70) return "bg-red-50 border-red-200";
+  if (score >= 70) return "bg-amber-50 border-amber-200";
   if (score >= 50) return "bg-orange-50 border-orange-200";
   if (score >= 30) return "bg-yellow-50 border-yellow-200";
-  return "bg-green-50 border-green-200";
+  return "bg-gray-50 border-gray-200";
 }
