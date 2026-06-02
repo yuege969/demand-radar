@@ -27,8 +27,6 @@ def init_db() -> None:
             os.makedirs(db_dir, exist_ok=True)
             logger.info("Created database directory: {}", db_dir)
 
-    import app.models.post  # noqa: F401
-    import app.models.comment  # noqa: F401
     import app.models.pain_point  # noqa: F401
     import app.models.pain_score  # noqa: F401
 

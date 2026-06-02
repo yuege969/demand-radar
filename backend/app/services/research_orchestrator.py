@@ -19,7 +19,7 @@ from app.services.rate_limiter import create_rate_limiter
 from app.services.researchers.firecrawl_search import FirecrawlResearcher
 from app.services.skill_loader import SkillLoader
 
-LEGACY_RESEARCHER_MAP = {
+BUILTIN_RESEARCHER_MAP = {
     "web": FirecrawlResearcher,
 }
 
@@ -37,7 +37,7 @@ def _get_skill_loader() -> SkillLoader:
 
 
 def list_available_platforms() -> list[str]:
-    platforms = list(LEGACY_RESEARCHER_MAP.keys())
+    platforms = list(BUILTIN_RESEARCHER_MAP.keys())
     try:
         loader = _get_skill_loader()
         for meta in loader.list_skills():
@@ -49,8 +49,8 @@ def list_available_platforms() -> list[str]:
 
 
 def _resolve_researcher(name: str, rate_limiter=None):
-    if name in LEGACY_RESEARCHER_MAP:
-        researcher_cls = LEGACY_RESEARCHER_MAP[name]
+    if name in BUILTIN_RESEARCHER_MAP:
+        researcher_cls = BUILTIN_RESEARCHER_MAP[name]
         if name == "web":
             return researcher_cls(rate_limiter=rate_limiter)
         return researcher_cls()
@@ -72,7 +72,7 @@ def _map_dimensions(pp: dict) -> dict:
     wtp = WTP_MAP.get(pp.get("willingness_to_pay", "none"), 0)
     return {
         "emotion_intensity": 5,
-        "comment_volume": 5,
+        "discussion_volume": 5,
         "repeat_frequency": freq,
         "involves_money": wtp,
         "has_paid_solution": 5,
@@ -208,8 +208,7 @@ def _create_pain_point(db, pp_data: dict, job_id: int, domain: str) -> None:
         industry=domain,
         pain_score=total,
         keywords=json.dumps([pp_data.get("category", ""), pp_data.get("target_user", ""), domain]),
-        source_post_ids=source_info,
-        source_comment_ids=json.dumps([]),
+        source_urls=source_info,
         business_angle=pp_data.get("target_user", ""),
         created_at=now,
         updated_at=now,
@@ -223,7 +222,7 @@ def _create_pain_point(db, pp_data: dict, job_id: int, domain: str) -> None:
     ps = PainScore(
         pain_point_id=pp.id,
         emotion_intensity=dims["emotion_intensity"],
-        comment_volume=dims["comment_volume"],
+        discussion_volume=dims["discussion_volume"],
         repeat_frequency=dims["repeat_frequency"],
         involves_money=dims["involves_money"],
         has_paid_solution=dims["has_paid_solution"],
@@ -239,12 +238,12 @@ def _merge_pain_point(db, pp_id: int, pp_data: dict) -> None:
     pp = db.query(PainPoint).filter(PainPoint.id == pp_id).first()
     if not pp:
         return
-    existing = json.loads(pp.source_post_ids or "[]")
+    existing = json.loads(pp.source_urls or "[]")
     existing.append({
         "platform": pp_data.get("_platform", "unknown"),
         "title": pp_data.get("title", ""),
     })
-    pp.source_post_ids = json.dumps(existing)
+    pp.source_urls = json.dumps(existing)
     pp.updated_at = datetime.now(timezone.utc).isoformat()
 
 

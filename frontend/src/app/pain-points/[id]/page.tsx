@@ -242,39 +242,32 @@ export default function PainPointDetailPage() {
         </section>
       )}
 
-      {data.source_posts.length > 0 && (
+      {data.source_findings.length > 0 && (
         <section className="rounded-xl border border-gray-200 bg-white p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">来源 ({data.source_posts.length})</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">来源 ({data.source_findings.length})</h2>
           <div className="space-y-3">
-            {data.source_posts.map((src, i) =>
-              src.platform ? (
-                <div
-                  key={i}
-                  className="block rounded-lg border border-gray-100 p-4"
-                >
-                  <p className="font-medium text-gray-900 text-sm">{src.title}</p>
-                  <span className="text-xs text-gray-500 mt-1">
-                    {src.platform}
-                  </span>
-                </div>
-              ) : (
+            {data.source_findings.map((src, i) => (
+              src.url ? (
                 <a
-                  key={src.id ?? i}
-                  href={src.url || "#"}
+                  key={i}
+                  href={src.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block rounded-lg border border-gray-100 p-4 hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-gray-900 text-sm">{src.title}</p>
                   <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                    {src.subreddit && <span>r/{src.subreddit}</span>}
-                    {src.score != null && <span>{src.score} 赞</span>}
-                    {src.num_comments != null && <span>{src.num_comments} 评论</span>}
-                    {src.created_utc && <span>{formatDate(src.created_utc)}</span>}
+                    {src.platform && <span>{src.platform}</span>}
+                    {src.snippet && <span className="truncate max-w-md">{src.snippet}</span>}
                   </div>
                 </a>
+              ) : (
+                <div key={i} className="rounded-lg border border-gray-100 p-4">
+                  <p className="font-medium text-gray-900 text-sm">{src.title}</p>
+                  {src.platform && <span className="text-xs text-gray-500 mt-1">{src.platform}</span>}
+                </div>
               )
-            )}
+            ))}
           </div>
         </section>
       )}

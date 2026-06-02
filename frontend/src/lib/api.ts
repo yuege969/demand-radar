@@ -21,7 +21,7 @@ export interface PainPoint {
   industry: string | null;
   pain_score: number;
   keywords: string | null;
-  source_post_ids: string | null;
+  source_urls: string | null;
   is_saas_idea: boolean;
   is_plugin_idea: boolean;
   business_angle: string | null;
@@ -78,7 +78,7 @@ export interface SoloFeasibility {
 
 export interface PainScoreBreakdown {
   emotion_intensity: number;
-  comment_volume: number;
+  discussion_volume: number;
   repeat_frequency: number;
   involves_money: number;
   has_paid_solution: number;
@@ -90,36 +90,14 @@ export interface PainScoreBreakdown {
 export interface SourceRef {
   platform?: string;
   title?: string;
+  snippet?: string;
   url?: string;
-  id?: number;
-  subreddit?: string;
-  score?: number;
-  num_comments?: number;
-  created_utc?: string;
 }
 
 export interface PainPointDetail extends PainPoint {
   score_breakdown: PainScoreBreakdown | null;
-  source_posts: SourceRef[];
+  source_findings: SourceRef[];
   related: PainPoint[];
-}
-
-export interface Post {
-  id: number;
-  external_id: string;
-  source: string;
-  title: string;
-  body: string | null;
-  url: string | null;
-  subreddit: string;
-  author: string | null;
-  score: number;
-  num_comments: number;
-  signal_score: number | null;
-  analysis_stage: string;
-  created_utc: string;
-  fetched_at: string;
-  processed: number;
 }
 
 export interface ResearchJob {
@@ -160,10 +138,6 @@ export async function getCategories(): Promise<ApiResponse<{ categories: string[
 
 export async function searchAll(q: string, params?: Record<string, string>): Promise<ApiResponse<unknown[]>> {
   return fetchApi("/pain-points/search/all", { q, ...params });
-}
-
-export async function getPosts(params?: Record<string, string>): Promise<ApiResponse<Post[]>> {
-  return fetchApi<Post[]>("/posts", params);
 }
 
 export async function getResearchJobs(params?: Record<string, string>): Promise<ApiResponse<ResearchJob[]>> {

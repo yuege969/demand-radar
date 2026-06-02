@@ -10,14 +10,6 @@ def test_health_check(client: TestClient):
     assert response.json()["data"]["status"] == "healthy"
 
 
-def test_list_posts_empty(client: TestClient):
-    response = client.get("/api/v1/posts")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert isinstance(data["data"], list)
-
-
 def test_research_trigger_without_token(client: TestClient):
     """Without ADMIN_API_TOKEN configured, the endpoint returns 500.
     With a configured token but no header, it would return 401."""

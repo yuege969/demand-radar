@@ -13,7 +13,7 @@ class PainPointOut(BaseModel):
     industry: Optional[str] = None
     pain_score: float
     keywords: Optional[str] = None
-    source_post_ids: Optional[str] = None
+    source_urls: Optional[str] = None
     is_saas_idea: bool = False
     is_plugin_idea: bool = False
     business_angle: Optional[str] = None
@@ -40,7 +40,7 @@ class PainPointOut(BaseModel):
 
 class PainScoreBreakdown(BaseModel):
     emotion_intensity: float
-    comment_volume: float
+    discussion_volume: float
     repeat_frequency: float
     involves_money: float
     has_paid_solution: float
@@ -53,5 +53,5 @@ class PainScoreBreakdown(BaseModel):
 
 class PainPointDetail(PainPointOut):
     score_breakdown: Optional[PainScoreBreakdown] = None
-    source_posts: list = []
+    source_findings: list = []
     related: list["PainPointOut"] = []

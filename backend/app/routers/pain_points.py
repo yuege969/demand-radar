@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.pain_point import PainPoint
 from app.models.pain_score import PainScore
-from app.models.post import Post
 from app.schemas import ApiResponse, PaginationMeta
 from app.schemas.pain_point import PainPointOut, PainPointDetail, PainScoreBreakdown
 
@@ -27,9 +26,9 @@ def _parse_json_list(raw: str | None) -> list[str] | None:
 
 def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
     source_count = 0
-    if pp.source_post_ids:
+    if pp.source_urls:
         try:
-            source_count = len(json.loads(pp.source_post_ids))
+            source_count = len(json.loads(pp.source_urls))
         except (json.JSONDecodeError, TypeError):
             pass
     return PainPointOut(
@@ -40,7 +39,7 @@ def _to_pain_point_out(pp: PainPoint) -> PainPointOut:
         industry=pp.industry,
         pain_score=pp.pain_score or 0.0,
         keywords=pp.keywords,
-        source_post_ids=pp.source_post_ids,
+        source_urls=pp.source_urls,
         is_saas_idea=bool(pp.is_saas_idea),
         is_plugin_idea=bool(pp.is_plugin_idea),
         business_angle=pp.business_angle,
@@ -99,17 +98,10 @@ def get_pain_point(pain_point_id: int, db: Session = Depends(get_db)):
     score = db.query(PainScore).filter(PainScore.pain_point_id == pain_point_id).first()
     breakdown = PainScoreBreakdown.model_validate(score) if score else None
 
-    source_posts: list = []
-    if pp.source_post_ids:
+    source_findings: list = []
+    if pp.source_urls:
         try:
-            ids = json.loads(pp.source_post_ids)
-            if ids and isinstance(ids[0], dict):
-                source_posts = ids
-            elif ids:
-                from app.schemas.post import PostOut
-
-                posts = db.query(Post).filter(Post.id.in_(ids)).all()
-                source_posts = [PostOut.model_validate(p) for p in posts]
+            source_findings = json.loads(pp.source_urls)
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -128,7 +120,7 @@ def get_pain_point(pain_point_id: int, db: Session = Depends(get_db)):
         data=PainPointDetail(
             **_to_pain_point_out(pp).model_dump(),
             score_breakdown=breakdown,
-            source_posts=source_posts,
+            source_findings=source_findings,
             related=[_to_pain_point_out(r) for r in related],
         )
     )

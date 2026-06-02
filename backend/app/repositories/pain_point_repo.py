@@ -27,16 +27,13 @@ class PainPointRepository:
     def get_all_ids(self) -> list[int]:
         return [r[0] for r in self.db.query(PainPoint.id).all()]
 
-    def merge_sources(self, pp_id: int, new_post_ids: list[int], new_comment_ids: list[int]) -> None:
+    def merge_sources(self, pp_id: int, new_sources: list) -> None:
         pp = self.get_by_id(pp_id)
         if not pp:
             return
-        existing_posts = json.loads(pp.source_post_ids or "[]")
-        existing_comments = json.loads(pp.source_comment_ids or "[]")
-        merged_posts = list(set(existing_posts + new_post_ids))
-        merged_comments = list(set(existing_comments + new_comment_ids))
-        pp.source_post_ids = json.dumps(merged_posts)
-        pp.source_comment_ids = json.dumps(merged_comments)
+        existing = json.loads(pp.source_urls or "[]")
+        merged = existing + [s for s in new_sources if s not in existing]
+        pp.source_urls = json.dumps(merged)
         pp.updated_at = __import__("datetime").datetime.utcnow().isoformat() + "Z"
         self.db.commit()
 
