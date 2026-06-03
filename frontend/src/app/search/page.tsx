@@ -22,9 +22,7 @@ function SearchContent() {
       .then((res) => {
         if (res.success && res.data) {
           let data = res.data as unknown as PainPoint[];
-          if (filterFeasible) {
-            data = data.filter((p) => p.is_individual_feasible);
-          }
+          if (filterFeasible) data = data.filter((p) => p.is_individual_feasible);
           setResults(data);
         }
       })
@@ -32,10 +30,7 @@ function SearchContent() {
   }, []);
 
   useEffect(() => {
-    if (query) {
-      setInputValue(query);
-      doSearch(query, feasibleOnly);
-    }
+    if (query) { setInputValue(query); doSearch(query, feasibleOnly); }
   }, [query, doSearch, feasibleOnly]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -48,63 +43,66 @@ function SearchContent() {
   return (
     <ScrollRestoration>
       <div className="max-w-3xl mx-auto space-y-6">
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="搜索需求、关键词、行业..."
-          className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        />
-        <button type="submit" className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors">
-          搜索
-        </button>
-      </form>
-
-      <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 cursor-pointer">
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <input
-            type="checkbox"
-            checked={feasibleOnly}
-            onChange={(e) => setFeasibleOnly(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="搜索需求、关键词、行业..."
+            className="flex-1 rounded-lg border border-hairline bg-surface-1 px-4 py-2.5 text-[14px] text-text-primary placeholder:text-text-muted focus:border-accent/40 focus:ring-1 focus:ring-accent/40 outline-none transition-colors"
           />
-          <span className="text-sm text-gray-600">仅显示个人开发者可做的机会</span>
-        </label>
-      </div>
+          <button
+            type="submit"
+            className="rounded-lg bg-accent px-5 py-2.5 text-[13px] font-medium text-white hover:bg-accent-hover transition-colors"
+          >
+            搜索
+          </button>
+        </form>
 
-      {loading ? (
-        <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-40 rounded-xl bg-gray-100 animate-pulse" />
-          ))}
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={feasibleOnly}
+              onChange={(e) => setFeasibleOnly(e.target.checked)}
+              className="w-4 h-4 rounded border-hairline bg-surface-1 text-accent focus:ring-accent/40"
+            />
+            <span className="text-[13px] text-text-secondary">仅显示个人开发者可做的机会</span>
+          </label>
         </div>
-      ) : query ? (
-        <div>
-          <p className="text-sm text-gray-500 mb-4">
-            搜索 &quot;{query}&quot; — {results.length} 个结果
-          </p>
-          {results.length === 0 ? (
-            <p className="text-center py-12 text-gray-400">未找到相关需求</p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {results.map((p) => (
-                <PainCard key={p.id} painPoint={p} />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="text-center py-20 text-gray-400">输入关键词搜索需求</p>
-      )}
-    </div>
+
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-40 rounded-[10px] bg-surface-1 animate-pulse" />
+            ))}
+          </div>
+        ) : query ? (
+          <div>
+            <p className="text-[13px] text-text-muted mb-4">
+              搜索 &quot;{query}&quot; — {results.length} 个结果
+            </p>
+            {results.length === 0 ? (
+              <p className="text-center py-12 text-text-muted">未找到相关需求</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {results.map((p) => (
+                  <PainCard key={p.id} painPoint={p} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-center py-20 text-text-muted">输入关键词搜索需求</p>
+        )}
+      </div>
     </ScrollRestoration>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="max-w-3xl mx-auto"><div className="h-64 rounded-xl bg-gray-100 animate-pulse" /></div>}>
+    <Suspense fallback={<div className="max-w-3xl mx-auto"><div className="h-64 rounded-[10px] bg-surface-1 animate-pulse" /></div>}>
       <SearchContent />
     </Suspense>
   );

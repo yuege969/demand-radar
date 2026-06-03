@@ -2,11 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  triggerResearch,
-  getResearchJobs,
-  type ResearchJob,
-} from "@/lib/api";
+import { triggerResearch, getResearchJobs, type ResearchJob } from "@/lib/api";
 
 const TOKEN_STORAGE_KEY = "demand-radar-admin-token";
 
@@ -26,32 +22,22 @@ export default function ResearchInput() {
 
   const fetchJobs = useCallback(async () => {
     const res = await getResearchJobs({ per_page: "5" });
-    if (res.success && res.data) {
-      setJobs(res.data);
-    }
+    if (res.success && res.data) setJobs(res.data);
   }, []);
 
-  useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+  useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!domain.trim()) return;
-
     setLoading(true);
     setMessage("");
 
     try {
-      const res = await triggerResearch(
-        domain.trim(),
-        token.trim()
-      );
+      const res = await triggerResearch(domain.trim(), token.trim());
       if (res.success && res.data) {
         const data = res.data as { job_id?: number };
-        if (token.trim()) {
-          localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
-        }
+        if (token.trim()) localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
         setDomain("");
         if (data.job_id) {
           router.push(`/research/${data.job_id}`);
@@ -69,29 +55,21 @@ export default function ResearchInput() {
     }
   };
 
-  const statusLabel = (status: string) => {
+  const statusColor = (status: string) => {
     switch (status) {
-      case "completed":
-        return "已完成";
-      case "running":
-        return "运行中";
-      case "failed":
-        return "失败";
-      default:
-        return "等待中";
+      case "completed": return "text-green bg-green-muted";
+      case "running": return "text-amber bg-amber-muted";
+      case "failed": return "text-red bg-red-muted";
+      default: return "text-text-muted bg-surface-2";
     }
   };
 
-  const statusColor = (status: string) => {
+  const statusLabel = (status: string) => {
     switch (status) {
-      case "completed":
-        return "text-emerald-600 bg-emerald-50";
-      case "running":
-        return "text-amber-600 bg-amber-50";
-      case "failed":
-        return "text-red-600 bg-red-50";
-      default:
-        return "text-gray-500 bg-gray-100";
+      case "completed": return "已完成";
+      case "running": return "运行中";
+      case "failed": return "失败";
+      default: return "等待中";
     }
   };
 
@@ -100,23 +78,21 @@ export default function ResearchInput() {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="flex gap-3 items-end">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              研究领域
-            </label>
+            <label className="block text-[13px] font-medium text-text-secondary mb-1">研究领域</label>
             <input
               type="text"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               placeholder="例如：AI法律、跨境电商、独立开发者工具"
               data-research-input
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border border-hairline bg-surface-1 px-4 py-2.5 text-[14px] text-text-primary placeholder:text-text-muted focus:border-accent/40 focus:ring-1 focus:ring-accent/40 outline-none transition-colors"
               disabled={loading}
             />
           </div>
           <button
             type="submit"
             disabled={loading || !domain.trim()}
-            className="px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2.5 bg-accent text-white text-[13px] font-medium rounded-lg hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "启动中..." : "开始研究"}
           </button>
@@ -125,7 +101,7 @@ export default function ResearchInput() {
         <button
           type="button"
           onClick={() => setShowToken(!showToken)}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-[11px] text-text-muted hover:text-text-secondary transition-colors"
         >
           {showToken ? "隐藏" : "设置"} Admin Token
         </button>
@@ -135,39 +111,31 @@ export default function ResearchInput() {
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder="输入 Admin Token"
-            className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 focus:border-gray-300 outline-none"
+            className="w-full rounded-lg border border-hairline bg-surface-1 px-3 py-1.5 text-[12px] text-text-secondary placeholder:text-text-muted focus:border-hairline outline-none"
           />
         )}
-        {message && <p className="text-sm text-gray-600">{message}</p>}
+        {message && <p className="text-[13px] text-text-secondary">{message}</p>}
       </form>
 
       {jobs.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-500 mb-2">最近研究</h3>
+          <h3 className="text-[13px] font-medium text-text-muted mb-2">最近研究</h3>
           <div className="space-y-2">
             {jobs.map((job) => (
               <a
                 key={job.id}
                 href={`/research/${job.id}`}
-                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-indigo-200 transition-colors"
+                className="flex items-center justify-between rounded-lg border border-hairline bg-surface-1 px-4 py-3 hover:border-white/10 transition-colors"
               >
                 <div>
-                  <span className="font-medium text-gray-900">
-                    {job.domain}
-                  </span>
-                  <span className="ml-2 text-xs text-gray-400">
-                    {job.platforms?.join(", ")}
-                  </span>
+                  <span className="text-[14px] font-medium text-text-primary">{job.domain}</span>
+                  <span className="ml-2 text-[11px] text-text-muted">{job.platforms?.join(", ")}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   {job.status === "completed" && (
-                    <span className="text-xs text-gray-500">
-                      {job.pain_points_extracted} 个需求
-                    </span>
+                    <span className="text-[11px] text-text-muted">{job.pain_points_extracted} 个需求</span>
                   )}
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(job.status)}`}
-                  >
+                  <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${statusColor(job.status)}`}>
                     {statusLabel(job.status)}
                   </span>
                 </div>
