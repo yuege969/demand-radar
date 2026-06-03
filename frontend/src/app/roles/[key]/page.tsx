@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getRoleDetail, triggerResearch, type Role, type PainPoint } from "@/lib/api";
 import PainCard from "@/components/ui/PainCard";
+import ScrollRestoration from "@/components/common/ScrollRestoration";
 
 const TOKEN_STORAGE_KEY = "demand-radar-admin-token";
 
@@ -86,7 +87,8 @@ export default function RoleDetailPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <ScrollRestoration>
+      <div className="max-w-4xl mx-auto space-y-8">
       <Link href="/" className="text-sm text-gray-500 hover:text-indigo-600">
         &larr; 返回首页
       </Link>
@@ -179,5 +181,6 @@ export default function RoleDetailPage() {
         </section>
       )}
     </div>
+    </ScrollRestoration>
   );
 }

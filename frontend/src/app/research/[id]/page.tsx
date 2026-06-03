@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import PainCard from "@/components/ui/PainCard";
+import ScrollRestoration from "@/components/common/ScrollRestoration";
 import {
   getResearchJob,
   getResearchPainPoints,
@@ -110,7 +111,8 @@ export default function ResearchDetailPage({
   }
 
   return (
-    <div className="space-y-6">
+    <ScrollRestoration>
+      <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link
           href="/"
@@ -226,5 +228,6 @@ export default function ResearchDetailPage({
         </section>
       )}
     </div>
+    </ScrollRestoration>
   );
 }

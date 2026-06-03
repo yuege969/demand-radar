@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getPainPoint,
@@ -87,6 +87,7 @@ function ModuleCheckbox({
 
 export default function PainPointDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = Number(params.id);
   const [data, setData] = useState<PainPointDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,7 +162,7 @@ export default function PainPointDetailPage() {
     return (
       <div className="text-center py-20">
         <p className="text-lg text-gray-500">需求未找到</p>
-        <Link href="/" className="text-indigo-600 hover:underline mt-2 inline-block">
+        <Link href="/" scroll={false} className="text-indigo-600 hover:underline mt-2 inline-block">
           返回首页
         </Link>
       </div>
@@ -203,9 +204,12 @@ export default function PainPointDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <Link href="/" className="text-sm text-gray-500 hover:text-indigo-600">
+      <button
+        onClick={() => router.back()}
+        className="text-sm text-gray-500 hover:text-indigo-600"
+      >
         &larr; 返回列表
-      </Link>
+      </button>
 
       {/* Header */}
       <header className="space-y-4">

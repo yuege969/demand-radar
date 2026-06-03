@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { searchAll, type PainPoint } from "@/lib/api";
 import PainCard from "@/components/ui/PainCard";
+import ScrollRestoration from "@/components/common/ScrollRestoration";
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -45,7 +46,8 @@ function SearchContent() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <ScrollRestoration>
+      <div className="max-w-3xl mx-auto space-y-6">
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
@@ -96,6 +98,7 @@ function SearchContent() {
         <p className="text-center py-20 text-gray-400">输入关键词搜索需求</p>
       )}
     </div>
+    </ScrollRestoration>
   );
 }
 

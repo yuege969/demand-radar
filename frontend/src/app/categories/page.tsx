@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCategories, getPainPoints, type PainPoint } from "@/lib/api";
 import PainCard from "@/components/ui/PainCard";
+import ScrollRestoration from "@/components/common/ScrollRestoration";
 
 const CATEGORY_LABELS: Record<string, { name: string; desc: string; color: string }> = {
   automation: { name: "自动化", desc: "重复任务自动化需求", color: "border-blue-300 bg-blue-50" },
@@ -35,7 +36,8 @@ export default function CategoriesPage() {
     : painPoints;
 
   return (
-    <div className="space-y-6">
+    <ScrollRestoration>
+      <div className="space-y-6">
       <h1 className="text-2xl font-bold">行业分类</h1>
 
       <div className="flex flex-wrap gap-3">
@@ -77,5 +79,6 @@ export default function CategoriesPage() {
         </div>
       )}
     </div>
+    </ScrollRestoration>
   );
 }

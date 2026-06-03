@@ -3,6 +3,7 @@ import ResearchInput from "@/components/home/ResearchInput";
 import RoleNavigator from "@/components/home/RoleNavigator";
 import CategoryNav from "@/components/home/CategoryNav";
 import PainVocabulary from "@/components/home/PainVocabulary";
+import ScrollRestoration from "@/components/common/ScrollRestoration";
 import { type PainPoint } from "@/lib/api";
 
 const API_URL =
@@ -154,7 +155,8 @@ export default async function HomePage() {
   const isEmpty = painPoints.length === 0;
 
   return (
-    <div className="space-y-8">
+    <ScrollRestoration>
+      <div className="space-y-8">
       {/* Section 1: Role-based navigation */}
       <RoleNavigator />
 
@@ -248,5 +250,6 @@ export default async function HomePage() {
         </>
       )}
     </div>
+    </ScrollRestoration>
   );
 }
