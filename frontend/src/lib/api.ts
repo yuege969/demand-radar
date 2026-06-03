@@ -50,6 +50,53 @@ export interface PainPoint {
   enriched_at: string | null;
 }
 
+export interface Role {
+  key: string;
+  name: string;
+  icon: string;
+  description: string;
+  subtopics: string[];
+  demand_count: number;
+  avg_opportunity_score: number;
+}
+
+export interface DomainCategory {
+  key: string;
+  name: string;
+  description: string;
+  keywords: string[];
+}
+
+export interface PainVocabularyItem {
+  category: string;
+  words: string[];
+}
+
+export interface Taxonomy {
+  roles: Role[];
+  categories: DomainCategory[];
+  pain_vocabulary: PainVocabularyItem[];
+}
+
+export interface RoleDetail {
+  role: Role;
+  related_pain_points: PainPoint[];
+}
+
+export interface DomainSuggestions {
+  suggestions: string[];
+}
+
+export interface DensityStat {
+  id: number;
+  title: string;
+  source_count: number;
+  opportunity_score: number;
+  competition_count: number | null;
+  density_score: number;
+  density_stars: number;
+}
+
 export interface EnrichmentModuleInfo {
   key: string;
   display_name: string;
@@ -156,6 +203,30 @@ export async function getPainPoint(id: number): Promise<ApiResponse<PainPointDet
 
 export async function getCategories(): Promise<ApiResponse<{ categories: string[]; industries: string[] }>> {
   return fetchApi("/pain-points/categories/list");
+}
+
+export async function getTaxonomy(): Promise<ApiResponse<Taxonomy>> {
+  return fetchApi<Taxonomy>("/domains/taxonomy");
+}
+
+export async function getRoles(): Promise<ApiResponse<Role[]>> {
+  return fetchApi<Role[]>("/domains/roles");
+}
+
+export async function getRoleDetail(key: string): Promise<ApiResponse<RoleDetail>> {
+  return fetchApi<RoleDetail>(`/domains/roles/${encodeURIComponent(key)}`);
+}
+
+export async function getPainVocabulary(): Promise<ApiResponse<PainVocabularyItem[]>> {
+  return fetchApi<PainVocabularyItem[]>("/domains/pain-vocabulary");
+}
+
+export async function suggestDomains(q: string): Promise<ApiResponse<DomainSuggestions>> {
+  return fetchApi<DomainSuggestions>("/domains/suggest", { q });
+}
+
+export async function getDensityStats(params?: Record<string, string>): Promise<ApiResponse<DensityStat[]>> {
+  return fetchApi<DensityStat[]>("/pain-points/density-stats", params);
 }
 
 export async function searchAll(q: string, params?: Record<string, string>): Promise<ApiResponse<unknown[]>> {

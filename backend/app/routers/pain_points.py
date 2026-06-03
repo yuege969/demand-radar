@@ -98,6 +98,48 @@ def list_pain_points(
     )
 
 
+@router.get("/density-stats")
+def get_density_stats(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    total = db.query(PainPoint).count()
+    points = (
+        db.query(PainPoint)
+        .order_by(PainPoint.opportunity_score.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    result = []
+    for pp in points:
+        source_count = 0
+        if pp.source_urls:
+            try:
+                source_count = len(json.loads(pp.source_urls))
+            except (json.JSONDecodeError, TypeError):
+                pass
+        competition_count = _extract_competition_count(pp)
+        density = _calc_density_score(source_count, pp.opportunity_score or 0, competition_count)
+        stars = _density_to_stars(density)
+        result.append({
+            "id": pp.id,
+            "title": pp.title,
+            "source_count": source_count,
+            "opportunity_score": pp.opportunity_score or 0,
+            "competition_count": competition_count,
+            "density_score": round(density, 1),
+            "density_stars": stars,
+        })
+
+    return ApiResponse(
+        data=result,
+        meta=PaginationMeta(page=page, per_page=per_page, total=total).model_dump(),
+    )
+
+
 @router.get("/{pain_point_id}")
 def get_pain_point(pain_point_id: int, db: Session = Depends(get_db)):
     pp = db.query(PainPoint).filter(PainPoint.id == pain_point_id).first()
@@ -170,6 +212,47 @@ def search_all(
         data=results,
         meta=PaginationMeta(page=page, per_page=per_page, total=total).model_dump(),
     )
+
+
+def _extract_competition_count(pp: PainPoint) -> int | None:
+    if not pp.enrichment_data:
+        return None
+    try:
+        data = json.loads(pp.enrichment_data)
+        for key in ("competitor_scan", "competitor_compare"):
+            if key in data:
+                stored = data[key].get("result", {})
+                direct = stored.get("direct_competitors", [])
+                if isinstance(direct, list):
+                    return len(direct)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return None
+
+
+def _calc_density_score(source_count: int, opportunity_score: float,
+                         competition_count: int | None) -> float:
+    freq_factor = min(source_count / 10.0, 1.0)
+    opp_factor = opportunity_score / 100.0
+
+    if competition_count is not None and competition_count > 0:
+        comp_factor = max(0.0, 1.0 - competition_count / 10.0)
+    else:
+        comp_factor = 1.0
+
+    return (freq_factor * 0.3 + opp_factor * 0.4 + comp_factor * 0.3) * 100
+
+
+def _density_to_stars(score: float) -> int:
+    if score >= 70:
+        return 5
+    if score >= 55:
+        return 4
+    if score >= 40:
+        return 3
+    if score >= 25:
+        return 2
+    return 1
 
 
 @router.post("/re-enrich")

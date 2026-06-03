@@ -1,5 +1,8 @@
 import PainCard from "@/components/ui/PainCard";
 import ResearchInput from "@/components/home/ResearchInput";
+import RoleNavigator from "@/components/home/RoleNavigator";
+import CategoryNav from "@/components/home/CategoryNav";
+import PainVocabulary from "@/components/home/PainVocabulary";
 import { type PainPoint } from "@/lib/api";
 
 const API_URL =
@@ -152,25 +155,32 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <ResearchInput />
+      {/* Section 1: Role-based navigation */}
+      <RoleNavigator />
 
-      {isEmpty && (
+      {/* Section 2: Domain category navigation */}
+      <CategoryNav />
+
+      {/* Section 3: Pain point vocabulary (collapsible) */}
+      <PainVocabulary />
+
+      {/* Section 4: Research input (secondary entry point) */}
+      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-4">
+        <p className="text-xs text-gray-400 mb-2">
+          精确搜索：直接输入领域关键词、角色名或痛点描述
+        </p>
+        <ResearchInput />
+      </div>
+
+      {/* Section 5: Demo cards when empty, or stats + list when data exists */}
+      {isEmpty ? (
         <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-6">
-          <div className="text-center mb-6">
-            <h2 className="text-lg font-bold text-gray-900">
-              发现值得做的需求
-            </h2>
-            <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-              需求雷达帮助独立开发者从公开讨论中自动发现痛点，通过
-              AI 分析市场价值和个人可行性，快速判断一个需求值不值得做。
-            </p>
-          </div>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
               示例数据
             </span>
             <span className="text-xs text-gray-400">
-              以下是真实分析的示例需求，帮助你了解产品能力
+              以下是真实分析的示例需求。选中上方角色或领域后开始研究，将获取最新数据。
             </span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -211,9 +221,7 @@ export default async function HomePage() {
             ))}
           </div>
         </div>
-      )}
-
-      {!isEmpty && (
+      ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
             {stats.map((s) => (

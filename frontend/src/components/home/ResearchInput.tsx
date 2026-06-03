@@ -108,6 +108,7 @@ export default function ResearchInput() {
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               placeholder="例如：AI法律、跨境电商、独立开发者工具"
+              data-research-input
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
               disabled={loading}
             />
