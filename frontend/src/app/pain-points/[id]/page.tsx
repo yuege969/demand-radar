@@ -84,7 +84,10 @@ export default function PainPointDetailPage() {
   const loadData = useCallback(async () => {
     if (!id) return;
     const res = await getPainPoint(id);
-    if (res.success && res.data) setData(res.data);
+    if (res.success && res.data) {
+      setData(res.data);
+      if (!res.data.is_enriching) setIsEnriching(false);
+    }
     setLoading(false);
   }, [id]);
 
@@ -98,7 +101,13 @@ export default function PainPointDetailPage() {
 
   useEffect(() => {
     if (!isEnriching) return;
-    const interval = setInterval(() => { loadData(); loadModules(); }, 2000);
+    let attempts = 0;
+    const MAX_ATTEMPTS = 90;
+    const interval = setInterval(() => {
+      if (attempts >= MAX_ATTEMPTS) { clearInterval(interval); setIsEnriching(false); return; }
+      attempts++;
+      loadData(); loadModules();
+    }, 2000);
     return () => clearInterval(interval);
   }, [isEnriching, loadData, loadModules]);
 

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "deepseek-chat"
 
     GITHUB_TOKEN: str = ""
+    REDDIT_CLIENT_ID: str = ""
+    REDDIT_CLIENT_SECRET: str = ""
     RSS_FEEDS: str = ""
     CRAWL4AI_HEADLESS: bool = True
     CRAWL4AI_WORD_COUNT_THRESHOLD: int = 200

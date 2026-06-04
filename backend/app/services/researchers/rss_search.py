@@ -81,10 +81,10 @@ class RSSResearcher(BaseResearcher):
             try:
                 import feedparser
 
-                client = self._build_http_client()
-                resp = await client.get(url)
-                resp.raise_for_status()
-                feed = feedparser.parse(resp.text)
+                async with self._build_http_client() as client:
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    feed = feedparser.parse(resp.text)
             finally:
                 self._rate_limiter.release()
 

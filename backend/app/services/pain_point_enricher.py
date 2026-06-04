@@ -105,8 +105,15 @@ def _build_enrichment_user_prompt(
 
 
 def _strip_formatting(text: str) -> str:
-    text = text.strip()
-    text = re.sub(r"</?think>", "", text)
+    """Extract the actual answer from a DeepSeek R1-style response.
+
+    DeepSeek R1 wraps reasoning in ``<think>...</think>`` and places the real
+    answer after the closing tag.  Keep only what comes after the last ``</think>``.
+    Also strips markdown code fences.
+    """
+    last_close = text.rfind("</think>")
+    if last_close != -1:
+        text = text[last_close + len("</think>"):]
     text = re.sub(r"</?thinking>", "", text, flags=re.IGNORECASE)
     text = re.sub(r"```(?:json)?\s*", "", text)
     return text.strip()
@@ -283,7 +290,7 @@ async def enrich_snapshot(
     source_snippets: str | None = None,
 ) -> dict | None:
     user_content = _build_user_prompt(title, summary, category, industry, source_snippets)
-    return await _call_llm(SNAPSHOT_PROMPT, user_content, max_tokens=512)
+    return await _call_llm(SNAPSHOT_PROMPT, user_content, max_tokens=1024)
 
 
 async def enrich_module(

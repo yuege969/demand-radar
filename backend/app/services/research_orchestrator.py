@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import datetime, timezone
 from time import time
 
 from loguru import logger
+from openai import OpenAI
 
 from app.config import settings
 from app.database import SessionLocal
@@ -31,6 +33,93 @@ BUILTIN_RESEARCHER_MAP = {
     "reddit": RedditResearcher,
     "rss": RSSResearcher,
 }
+
+_ENGLISH_PLATFORMS: frozenset[str] = frozenset({"hackernews", "github", "reddit"})
+
+_DOMAIN_TRANSLATION_CACHE: dict[str, str] = {}
+
+
+def _strip_llm_tags(text: str) -> str:
+    """Extract the actual answer from a DeepSeek R1-style response.
+
+    DeepSeek R1 wraps reasoning in ``<think>...</think>`` and places the real
+    answer after the closing tag.  Keep only what comes after the last `</think>`.
+    """
+    # Find the last </think> closing tag — the real answer follows it
+    last_close = text.rfind("</think>")
+    if last_close != -1:
+        text = text[last_close + len("</think>"):]
+    # Also handle `` / `` pairs
+    text = re.sub(r"</?thinking>", "", text, flags=re.IGNORECASE)
+    return text.strip()
+
+
+def _needs_translation(domain: str) -> bool:
+    """Return True if *domain* contains non-ASCII characters (e.g. CJK)."""
+    return any(ord(c) > 127 for c in domain)
+
+
+def _translate_domain(domain: str) -> str:
+    """Translate a Chinese domain to English via the configured LLM.
+
+    Results are cached in-memory.  Falls back to the original domain if the
+    LLM call fails or the API key is missing.
+    """
+    if not _needs_translation(domain):
+        return domain
+
+    cached = _DOMAIN_TRANSLATION_CACHE.get(domain)
+    if cached is not None:
+        return cached
+
+    if not settings.LLM_API_KEY:
+        logger.warning("LLM_API_KEY not configured, skipping domain translation")
+        return domain
+
+    client = OpenAI(api_key=settings.LLM_API_KEY, base_url=settings.LLM_API_BASE)
+    try:
+        response = client.chat.completions.create(
+            model=settings.LLM_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise translator. Translate the given "
+                        "Chinese domain/field name to English. Return ONLY the "
+                        "English translation — no explanations, no punctuation, "
+                        "no quotes."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Domain: {domain}\nEnglish:",
+                },
+            ],
+            max_tokens=256,
+            temperature=0.1,
+        )
+
+        translated = (response.choices[0].message.content or "").strip()
+        translated = _strip_llm_tags(translated)
+        translated = re.sub(r'^["\']|["\']$|[.\n]', "", translated).strip()
+
+        if not translated or len(translated) > 100:
+            logger.warning(
+                "Domain translation produced invalid result ({}), falling back to original",
+                repr(translated),
+            )
+            translated = domain
+
+        logger.info("Domain translation: '{}' -> '{}'", domain, translated)
+        _DOMAIN_TRANSLATION_CACHE[domain] = translated
+        return translated
+
+    except Exception as e:
+        logger.warning(
+            "Domain translation failed for '{}': {}, falling back to original",
+            domain, e,
+        )
+        return domain
 
 _skill_loader: SkillLoader | None = None
 
@@ -152,14 +241,20 @@ async def run_research(domain: str, platforms: list[str], job_id: int | None = N
 
 async def _run_researchers(domain: str, platforms: list[str]) -> list[ResearcherOutput]:
     rate_limiter = create_rate_limiter()
+
+    english_domain = _translate_domain(domain)
+
     tasks = []
     for name in platforms:
         researcher = _resolve_researcher(name, rate_limiter=rate_limiter)
         if researcher is None:
             logger.warning("[JOB] 跳过未知数据源: {}", name)
             continue
-        logger.info("[JOB] 启动数据源: {} ({})", name, researcher.__class__.__name__)
-        tasks.append(researcher.research(domain))
+
+        researcher_domain = english_domain if name in _ENGLISH_PLATFORMS else domain
+        logger.info("[JOB] 启动数据源: {} ({}) | domain='{}'",
+                   name, researcher.__class__.__name__, researcher_domain)
+        tasks.append(researcher.research(researcher_domain))
 
     if not tasks:
         logger.warning("[JOB] 没有可用的数据源")

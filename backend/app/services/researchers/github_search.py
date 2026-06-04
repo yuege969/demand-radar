@@ -60,10 +60,10 @@ class GitHubResearcher(BaseResearcher):
                     "per_page": RESULTS_PER_QUERY,
                 }
 
-                client = self._build_http_client()
-                resp = await client.get(GITHUB_SEARCH_URL, params=params, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
+                async with self._build_http_client() as client:
+                    resp = await client.get(GITHUB_SEARCH_URL, params=params, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
             finally:
                 self._rate_limiter.release()
 

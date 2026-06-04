@@ -12,8 +12,8 @@ import os
 import httpx
 
 
-def build_http_client(**kwargs) -> httpx.Client:
-    """Return an httpx.Client with proxy settings derived from the environment.
+def build_http_client(**kwargs) -> httpx.AsyncClient:
+    """Return an httpx.AsyncClient with proxy settings derived from the environment.
 
     httpx raises ValueError on the unofficial ``socks://`` scheme that tools
     like clash/v2ray emit via ``ALL_PROXY``.  We skip ``ALL_PROXY`` and read
@@ -29,4 +29,4 @@ def build_http_client(**kwargs) -> httpx.Client:
         from app.config import settings
 
         proxy_url = settings.HTTP_PROXY or None
-    return httpx.Client(proxy=proxy_url, trust_env=False, **kwargs)
+    return httpx.AsyncClient(proxy=proxy_url, trust_env=False, **kwargs)

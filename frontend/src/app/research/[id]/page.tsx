@@ -16,7 +16,11 @@ export default function ResearchDetailPage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     let cancelled = false;
-    let interval: ReturnType<typeof setInterval> | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 60;
+    const BASE_DELAY = 3000;
+    const MAX_DELAY = 30000;
 
     async function load() {
       const jobRes = await getResearchJob(Number(id));
@@ -29,20 +33,25 @@ export default function ResearchDetailPage({ params }: { params: Promise<{ id: s
       setJob(jobRes.data);
 
       const isDone = jobRes.data.status === "completed" || jobRes.data.status === "failed";
-      if (isDone && !jobRes.data.is_enriching) {
-        if (interval) { clearInterval(interval); interval = null; }
-      }
+      const shouldStop = isDone && !jobRes.data.is_enriching;
 
-      const ppRes = await getResearchPainPoints(Number(id), { per_page: "50" });
-      if (cancelled) return;
-      if (ppRes.success && ppRes.data) setPainPoints(ppRes.data);
+      if (isDone || attempt === 0) {
+        const ppRes = await getResearchPainPoints(Number(id), { per_page: "50" });
+        if (cancelled) return;
+        if (ppRes.success && ppRes.data) setPainPoints(ppRes.data);
+      }
       setLoading(false);
+
+      if (shouldStop || attempt >= MAX_ATTEMPTS) return;
+
+      attempt++;
+      const delay = Math.min(BASE_DELAY * Math.pow(1.3, attempt), MAX_DELAY);
+      timeout = setTimeout(() => { if (!cancelled) load(); }, delay);
     }
 
     load();
-    interval = setInterval(() => { if (!cancelled) load(); }, 3000);
 
-    return () => { cancelled = true; if (interval) clearInterval(interval); };
+    return () => { cancelled = true; if (timeout) clearTimeout(timeout); };
   }, [id]);
 
   if (loading) {

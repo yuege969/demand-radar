@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from loguru import logger
 
 from app.schemas.research import ResearchFinding
@@ -47,22 +49,7 @@ class DDGSearchResearcher(BaseResearcher):
         try:
             await self._rate_limiter.wait()
             try:
-                from ddgs import DDGS
-
-                results = []
-                with DDGS(timeout=30) as ddgs:
-                    for r in ddgs.text(query, max_results=RESULTS_PER_QUERY):
-                        title = r.get("title", "") or ""
-                        url = r.get("href", "") or ""
-                        snippet = (r.get("body", "") or "")[:2000]
-                        results.append(
-                            ResearchFinding(
-                                title=title,
-                                content_snippet=snippet,
-                                url=url,
-                                platform=self.platform_name,
-                            )
-                        )
+                results = await asyncio.to_thread(self._do_search, query)
             finally:
                 self._rate_limiter.release()
             return results
@@ -73,3 +60,22 @@ class DDGSearchResearcher(BaseResearcher):
         except Exception as e:
             logger.warning("DDG search failed for '{}': {}", query, e)
             return []
+
+    def _do_search(self, query: str) -> list[ResearchFinding]:
+        from ddgs import DDGS
+
+        results = []
+        with DDGS(timeout=30) as ddgs:
+            for r in ddgs.text(query, max_results=RESULTS_PER_QUERY):
+                title = r.get("title", "") or ""
+                url = r.get("href", "") or ""
+                snippet = (r.get("body", "") or "")[:2000]
+                results.append(
+                    ResearchFinding(
+                        title=title,
+                        content_snippet=snippet,
+                        url=url,
+                        platform=self.platform_name,
+                    )
+                )
+        return results

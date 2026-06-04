@@ -49,15 +49,15 @@ class HNResearcher(BaseResearcher):
         try:
             await self._rate_limiter.wait()
             try:
-                client = self._build_http_client()
-                params = {
-                    "query": query,
-                    "tags": "story",
-                    "hitsPerPage": RESULTS_PER_QUERY,
-                }
-                resp = await client.get(HN_ALGOLIA_URL, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+                async with self._build_http_client() as client:
+                    params = {
+                        "query": query,
+                        "tags": "story",
+                        "hitsPerPage": RESULTS_PER_QUERY,
+                    }
+                    resp = await client.get(HN_ALGOLIA_URL, params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
             finally:
                 self._rate_limiter.release()
 
