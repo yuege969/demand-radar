@@ -173,6 +173,7 @@ def get_pain_point(pain_point_id: int, db: Session = Depends(get_db)):
             score_breakdown=breakdown,
             source_findings=source_findings,
             related=[_to_pain_point_out(r) for r in related],
+            is_enriching=pain_point_id in _enriching_points,
         )
     )
 

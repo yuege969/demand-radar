@@ -60,3 +60,4 @@ class PainPointDetail(PainPointOut):
     score_breakdown: Optional[PainScoreBreakdown] = None
     source_findings: list = []
     related: list["PainPointOut"] = []
+    is_enriching: bool = False

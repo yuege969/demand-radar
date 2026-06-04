@@ -165,6 +165,7 @@ export interface PainPointDetail extends PainPoint {
   score_breakdown: PainScoreBreakdown | null;
   source_findings: SourceRef[];
   related: PainPoint[];
+  is_enriching: boolean;
 }
 
 export interface ResearchJob {

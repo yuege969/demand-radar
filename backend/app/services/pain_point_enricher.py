@@ -228,34 +228,49 @@ async def _call_llm(system_prompt: str, user_content: str, max_tokens: int = 409
 
     client = OpenAI(api_key=settings.LLM_API_KEY, base_url=settings.LLM_API_BASE)
 
-    try:
-        response = client.chat.completions.create(
-            model=settings.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            max_tokens=max_tokens,
-            temperature=0.3,
-        )
+    for attempt in range(2):
+        try:
+            response = client.chat.completions.create(
+                model=settings.LLM_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.3,
+            )
 
-        finish = response.choices[0].finish_reason
-        if finish == "length":
-            logger.warning("LLM response truncated (finish_reason=length)")
+            finish = response.choices[0].finish_reason
+            if finish == "length":
+                logger.warning("LLM response truncated (finish_reason=length)")
 
-        text = response.choices[0].message.content or ""
-        text = _strip_formatting(text)
-        result = _parse_json(text)
+            text = response.choices[0].message.content or ""
+            text = _strip_formatting(text)
+            result = _parse_json(text)
 
-        if result is None:
+            if result is not None:
+                return result
+
+            # On first failure, check if response looks truncated and retry with more tokens
+            if attempt == 0 and not text.rstrip().endswith("}"):
+                logger.warning(
+                    "LLM JSON appears truncated (finish_reason={}), retrying with {} tokens",
+                    finish, max_tokens * 2,
+                )
+                max_tokens *= 2
+                continue
+
             logger.error("Failed to parse LLM JSON (finish_reason={}): {}", finish, text[:500])
             return None
 
-        return result
+        except Exception as e:
+            if attempt == 0:
+                logger.warning("LLM call failed, retrying: {}", e)
+                continue
+            logger.error("LLM call failed after retry: {}", e)
+            return None
 
-    except Exception as e:
-        logger.error("LLM call failed: {}", e)
-        return None
+    return None
 
 
 def _build_user_prompt(
@@ -309,4 +324,4 @@ async def enrich_module(
         return None
 
     user_content = _build_user_prompt(title, summary, category, industry, source_snippets)
-    return await _call_llm(module.system_prompt, user_content, max_tokens=4096)
+    return await _call_llm(module.system_prompt, user_content, max_tokens=8192)
