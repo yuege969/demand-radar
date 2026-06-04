@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import warnings
 from contextlib import asynccontextmanager
-
-warnings.filterwarnings("ignore", message=r"Field name .* shadows an attribute in parent", module="firecrawl")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware

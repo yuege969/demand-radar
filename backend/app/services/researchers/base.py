@@ -4,6 +4,7 @@ import json
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from time import time
 
 from loguru import logger
 from openai import OpenAI
@@ -51,6 +52,7 @@ class BaseResearcher(ABC):
     async def extract_insights(self, findings: list[ResearchFinding]) -> ResearcherOutput:
         """Use LLM to extract structured pain points from findings."""
         if not findings:
+            logger.info("[{}] 提取: 无数据，跳过", self.platform_name)
             return ResearcherOutput(
                 platform=self.platform_name,
                 findings_count=0,
@@ -59,6 +61,9 @@ class BaseResearcher(ABC):
                 complaints=[],
                 target_users=[],
             )
+
+        logger.info("[{}] 提取: {} 条发现 → LLM ({}) ...", self.platform_name, len(findings), settings.LLM_MODEL)
+        t0 = time()
 
         content_blocks = []
         for i, f in enumerate(findings):
@@ -96,10 +101,15 @@ class BaseResearcher(ABC):
             )
 
             text = response.choices[0].message.content or ""
+            usage = response.usage
+            if usage:
+                logger.debug("[{}] LLM tokens: in={} out={} total={}",
+                           self.platform_name, usage.prompt_tokens, usage.completion_tokens, usage.total_tokens)
+
             text = self._strip_formatting(text)
             result = self._parse_json(text)
             if result is None:
-                logger.error("Failed to parse LLM response: {}", text[:500])
+                logger.error("[{}] 提取: JSON 解析失败: {}", self.platform_name, text[:500])
                 return ResearcherOutput(
                     platform=self.platform_name,
                     findings_count=len(findings),
@@ -113,6 +123,14 @@ class BaseResearcher(ABC):
                         idx for idx in raw if isinstance(idx, int) and 0 <= idx < len(findings)
                     ]
 
+            elapsed = (time() - t0) * 1000
+            logger.info("[{}] 提取完成 | {:.0f}ms | pain={} req={} comp={} users={}",
+                       self.platform_name, elapsed,
+                       len(pain_points),
+                       len(result.get("feature_requests", [])),
+                       len(result.get("complaints", [])),
+                       len(result.get("target_users", [])))
+
             return ResearcherOutput(
                 platform=self.platform_name,
                 findings_count=len(findings),
@@ -122,7 +140,7 @@ class BaseResearcher(ABC):
                 target_users=result.get("target_users", []),
             )
         except Exception as e:
-            logger.error("LLM extraction failed for {}: {}", self.platform_name, e)
+            logger.error("[{}] 提取 LLM 失败: {}", self.platform_name, e)
             return ResearcherOutput(
                 platform=self.platform_name,
                 findings_count=len(findings),

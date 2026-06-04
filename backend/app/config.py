@@ -12,11 +12,13 @@ class Settings(BaseSettings):
     ADMIN_API_TOKEN: str = ""
 
     LLM_API_KEY: str = ""
-    LLM_API_BASE: str = "https://api.openai.com/v1"
-    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_API_BASE: str = "https://api.deepseek.com/v1"
+    LLM_MODEL: str = "deepseek-chat"
 
-    FIRECRAWL_API_KEY: str = ""
-    FIRECRAWL_API_BASE: str = ""
+    GITHUB_TOKEN: str = ""
+    RSS_FEEDS: str = ""
+    CRAWL4AI_HEADLESS: bool = True
+    CRAWL4AI_WORD_COUNT_THRESHOLD: int = 200
 
     HTTP_PROXY: str = ""
 

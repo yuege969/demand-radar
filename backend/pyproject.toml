@@ -11,7 +11,9 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     "loguru>=0.7.0",
     "httpx[socks]>=0.27.0",
-    "firecrawl-py",
+    "crawl4ai",
+    "feedparser>=6.0",
+    "ddgs>=8.0",
     "mcp>=1.0.0",
     "pyyaml>=6.0",
 ]

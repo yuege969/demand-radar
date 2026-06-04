@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timezone
+from time import time
 
 from loguru import logger
 
@@ -16,11 +17,19 @@ from app.services.deduplicator import encode_texts, find_most_similar, is_duplic
 from app.services.pain_point_enricher import enrich_pain_point, enrich_snapshot
 from app.services.pain_scorer import calculate_pain_score, calculate_opportunity_score
 from app.services.rate_limiter import create_rate_limiter
-from app.services.researchers.firecrawl_search import FirecrawlResearcher
+from app.services.researchers.ddg_search import DDGSearchResearcher
+from app.services.researchers.github_search import GitHubResearcher
+from app.services.researchers.hn_search import HNResearcher
+from app.services.researchers.reddit_search import RedditResearcher
+from app.services.researchers.rss_search import RSSResearcher
 from app.services.skill_loader import SkillLoader
 
 BUILTIN_RESEARCHER_MAP = {
-    "web": FirecrawlResearcher,
+    "web": DDGSearchResearcher,
+    "hackernews": HNResearcher,
+    "github": GitHubResearcher,
+    "reddit": RedditResearcher,
+    "rss": RSSResearcher,
 }
 
 _skill_loader: SkillLoader | None = None
@@ -51,9 +60,7 @@ def list_available_platforms() -> list[str]:
 def _resolve_researcher(name: str, rate_limiter=None):
     if name in BUILTIN_RESEARCHER_MAP:
         researcher_cls = BUILTIN_RESEARCHER_MAP[name]
-        if name == "web":
-            return researcher_cls(rate_limiter=rate_limiter)
-        return researcher_cls()
+        return researcher_cls(rate_limiter=rate_limiter)
 
     skill = _get_skill_loader().load_skill(name)
     if skill is not None:
@@ -85,8 +92,16 @@ async def run_research(domain: str, platforms: list[str], job_id: int | None = N
         job = _create_job(domain, platforms)
         job_id = job.id
 
+    logger.info("=" * 60)
+    logger.info("[JOB {}] 研究开始 | domain='{}' | platforms={}", job_id, domain, platforms)
+
     try:
+        logger.info("[JOB {}] 阶段1/4: 启动多源搜索...", job_id)
+        t0 = time()
         results = await _run_researchers(domain, platforms)
+        elapsed = (time() - t0) * 1000
+        logger.info("[JOB {}] 阶段1/4 完成 | {:.0f}ms | {} 个数据源返回结果",
+                    job_id, elapsed, len(results))
 
         all_findings_count = sum(r.findings_count for r in results)
         all_pain_points = []
@@ -95,21 +110,31 @@ async def run_research(domain: str, platforms: list[str], job_id: int | None = N
                 pp["_platform"] = r.platform
                 all_pain_points.append(pp)
 
-        logger.info(
-            "Aggregated {} pain points from {} findings across {} platforms",
-            len(all_pain_points),
-            all_findings_count,
-            len(results),
-        )
+        logger.info("[JOB {}] 汇总: {} 条原始发现 → {} 个候选痛点",
+                    job_id, all_findings_count, len(all_pain_points))
 
+        logger.info("[JOB {}] 阶段2/4: 语义去重 + 入库...", job_id)
+        t0 = time()
         new_count = 0
         if all_pain_points:
             new_count = _store_pain_points(all_pain_points, job_id, domain)
+        elapsed = (time() - t0) * 1000
+        logger.info("[JOB {}] 阶段2/4 完成 | {:.0f}ms | 新增 {} 个 / 合并 {} 个",
+                    job_id, elapsed, new_count, len(all_pain_points) - new_count)
 
+        logger.info("[JOB {}] 阶段3/4: 快照富化 (snapshot)...", job_id)
+        t0 = time()
         if new_count > 0:
             await _snapshot_pain_points(job_id)
+        elapsed = (time() - t0) * 1000
+        logger.info("[JOB {}] 阶段3/4 完成 | {:.0f}ms", job_id, elapsed)
 
+        logger.info("[JOB {}] 阶段4/4: 持久化完成标记...", job_id)
         _complete_job(job_id, all_findings_count, new_count)
+
+        logger.info("[JOB {}] 研究完成 | findings={} | pain_points={} | new={}",
+                    job_id, all_findings_count, len(all_pain_points), new_count)
+        logger.info("=" * 60)
 
         return {
             "job_id": job_id,
@@ -120,7 +145,7 @@ async def run_research(domain: str, platforms: list[str], job_id: int | None = N
         }
 
     except Exception as e:
-        logger.error("Research job {} failed: {}", job_id, e)
+        logger.error("[JOB {}] 研究失败: {}", job_id, e)
         _fail_job(job_id, str(e))
         raise
 
@@ -131,19 +156,24 @@ async def _run_researchers(domain: str, platforms: list[str]) -> list[Researcher
     for name in platforms:
         researcher = _resolve_researcher(name, rate_limiter=rate_limiter)
         if researcher is None:
-            logger.warning("Unknown researcher: {}, skipping", name)
+            logger.warning("[JOB] 跳过未知数据源: {}", name)
             continue
+        logger.info("[JOB] 启动数据源: {} ({})", name, researcher.__class__.__name__)
         tasks.append(researcher.research(domain))
 
     if not tasks:
+        logger.warning("[JOB] 没有可用的数据源")
         return []
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     outputs = []
     for i, r in enumerate(results):
+        name = platforms[i] if i < len(platforms) else "?"
         if isinstance(r, Exception):
-            logger.error("Researcher failed: {}", platforms[i] if i < len(platforms) else "?", r)
+            logger.error("[JOB] 数据源 {} 异常: {}", name, r)
         else:
+            logger.info("[JOB] 数据源 {} 完成 | findings={} | pain_points={}",
+                       name, r.findings_count, len(r.pain_points))
             outputs.append(r)
     return outputs
 
@@ -151,6 +181,8 @@ async def _run_researchers(domain: str, platforms: list[str]) -> list[Researcher
 def _store_pain_points(pain_points: list[dict], job_id: int, domain: str) -> int:
     db = SessionLocal()
     try:
+        logger.info("[JOB {}] 去重: 加载 {} 个已有痛点 embeddings...", job_id,
+                    db.query(PainPoint).count())
         existing_pps = db.query(PainPoint).all()
         existing_embeddings: list[tuple[int, list[float]]] = []
         if existing_pps:
@@ -158,6 +190,7 @@ def _store_pain_points(pain_points: list[dict], job_id: int, domain: str) -> int
             encodings = encode_texts(summaries)
             for pp, emb in zip(existing_pps, encodings):
                 existing_embeddings.append((pp.id, emb))
+            logger.info("[JOB {}] 去重: 已编码 {} 个已有痛点", job_id, len(existing_embeddings))
 
         summaries_to_encode = [pp.get("summary", pp.get("title", "")) for pp in pain_points]
         new_embeddings = (
@@ -167,6 +200,7 @@ def _store_pain_points(pain_points: list[dict], job_id: int, domain: str) -> int
         )
 
         new_count = 0
+        merged_count = 0
         for i, pp_data in enumerate(pain_points):
             best_id, best_score = find_most_similar(
                 new_embeddings[i], existing_embeddings
@@ -174,11 +208,17 @@ def _store_pain_points(pain_points: list[dict], job_id: int, domain: str) -> int
 
             if best_id and is_duplicate(best_score):
                 _merge_pain_point(db, best_id, pp_data)
+                merged_count += 1
+                logger.debug("[JOB {}] 去重: 合并 '{}' → PP#{} (相似度 {:.3f})",
+                           job_id, pp_data.get("title", "")[:40], best_id, best_score)
             else:
                 _create_pain_point(db, pp_data, job_id, domain)
                 new_count += 1
+                logger.info("[JOB {}] 去重: 新增 '{}' [{}/{}]",
+                           job_id, pp_data.get("title", "")[:40], i + 1, len(pain_points))
 
         db.commit()
+        logger.info("[JOB {}] 去重结果: 新增 {} / 合并 {} / 总计 {}", job_id, new_count, merged_count, len(pain_points))
         return new_count
     except Exception as e:
         db.rollback()
@@ -301,10 +341,12 @@ async def _snapshot_pain_points(job_id: int) -> int:
             .all()
         )
         if not points:
+            logger.info("[JOB {}] 快照: 无需富化 (已全部完成)", job_id)
             return 0
 
+        logger.info("[JOB {}] 快照: 开始富化 {} 个痛点...", job_id, len(points))
         enriched = 0
-        for pp in points:
+        for i, pp in enumerate(points):
             snippets = _extract_snippets(pp)
             result = await enrich_snapshot(
                 title=pp.title,
@@ -314,19 +356,22 @@ async def _snapshot_pain_points(job_id: int) -> int:
                 source_snippets=snippets or None,
             )
             if result is None:
+                logger.warning("[JOB {}] 快照: '{}' LLM 返回为空", job_id, pp.title[:30])
                 continue
 
             pp.snapshot_summary = result.get("summary") or pp.snapshot_summary
             pp.snapshot_opportunity = result.get("opportunity") or pp.snapshot_opportunity
             pp.snapshot_at = datetime.now(timezone.utc).isoformat()
             enriched += 1
+            logger.info("[JOB {}] 快照: '{:.30s}' → '{}' [{}/{}]",
+                       job_id, pp.title, pp.snapshot_summary or "-", i + 1, len(points))
 
         db.commit()
-        logger.info("Snapshot enriched {} pain points for job {}", enriched, job_id)
+        logger.info("[JOB {}] 快照完成: {}/{}", job_id, enriched, len(points))
         return enriched
     except Exception as e:
         db.rollback()
-        logger.error("Snapshot enrichment failed for job {}: {}", job_id, e)
+        logger.error("[JOB {}] 快照失败: {}", job_id, e)
         return 0
     finally:
         db.close()
