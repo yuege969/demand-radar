@@ -12,33 +12,33 @@ from app.config import settings
 from app.http_client import build_http_client
 from app.schemas.research import ResearchFinding, ResearcherOutput
 
-EXTRACTION_PROMPT = """You are a JSON API. Your entire response must be a single JSON object. Do NOT write any text before or after the JSON. Do NOT use markdown code fences.
+EXTRACTION_PROMPT = """你是一个 JSON API。你的整个响应必须是一个单一的 JSON 对象。不要在 JSON 前后写任何文字，不要使用 markdown 代码块。
 
-Extract user pain points, feature requests, and complaints from the provided content.
+从提供的内容中提取用户痛点、功能需求和抱怨。所有输出的文字内容（title, summary, description, target_user）必须使用中文。
 
-Output this exact structure:
+输出以下结构：
 {
   "pain_points": [
     {
-      "title": "short descriptive title",
-      "summary": "1-2 sentence description",
+      "title": "简短的中文描述性标题",
+      "summary": "1-2 句中文描述",
       "category": "automation|saas|tooling|mobile|content|other",
-      "target_user": "who experiences this pain",
+      "target_user": "谁会经历这个痛点（中文描述）",
       "frequency": "high|medium|low",
       "willingness_to_pay": "high|medium|low|none",
       "source_indices": [0, 1]
     }
   ],
   "feature_requests": [
-    {"description": "...", "target_user": "...", "source_indices": [0]}
+    {"description": "功能需求描述（中文）", "target_user": "目标用户（中文）", "source_indices": [0]}
   ],
   "complaints": [
-    {"description": "...", "target_user": "...", "source_indices": [0]}
+    {"description": "抱怨内容描述（中文）", "target_user": "目标用户（中文）", "source_indices": [0]}
   ],
-  "target_users": ["freelancers", "small business owners"]
+  "target_users": ["自由职业者", "小企业主"]
 }
 
-If nothing meaningful is found, return {"pain_points": [], "feature_requests": [], "complaints": [], "target_users": []}"""
+如果没有找到有意义的内容，返回 {"pain_points": [], "feature_requests": [], "complaints": [], "target_users": []}"""
 
 
 class BaseResearcher(ABC):

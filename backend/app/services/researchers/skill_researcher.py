@@ -61,8 +61,8 @@ class SkillResearcher(BaseResearcher):
                     {
                         "role": "system",
                         "content": (
-                            "Extract user pain points, feature requests, and complaints "
-                            "from online discussion content. Return ONLY valid JSON.\n\n"
+                            "从在线讨论内容中提取用户痛点、功能需求和抱怨。"
+                            "所有输出的文字内容必须使用中文。只返回合法的 JSON。\n\n"
                             f"{skill_guidance}"
                         ),
                     },
