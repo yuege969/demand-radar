@@ -33,7 +33,7 @@ def _sanitize_domain(raw: str) -> str:
 
 class ResearchRequest(BaseModel):
     domain: str
-    platforms: list[str] = ["web", "hackernews", "github", "reddit", "rss"]
+    platforms: list[str] = ["web", "hackernews", "github", "rss"]
 
 
 def _create_job(domain: str, platforms: list[str]) -> ResearchJob:

@@ -257,7 +257,7 @@ export async function triggerResearch(domain: string, adminToken: string, platfo
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Admin-Token": adminToken },
-    body: JSON.stringify({ domain, platforms: platforms || ["web", "hackernews", "github", "reddit", "rss"] }),
+    body: JSON.stringify({ domain, platforms: platforms || ["web", "hackernews", "github", "rss"] }),
   });
   if (!res.ok) {
     return { success: false, data: null, error: `HTTP ${res.status}`, meta: null };

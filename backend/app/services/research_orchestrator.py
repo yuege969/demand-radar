@@ -22,7 +22,6 @@ from app.services.rate_limiter import create_rate_limiter
 from app.services.researchers.ddg_search import DDGSearchResearcher
 from app.services.researchers.github_search import GitHubResearcher
 from app.services.researchers.hn_search import HNResearcher
-from app.services.researchers.reddit_search import RedditResearcher
 from app.services.researchers.rss_search import RSSResearcher
 from app.services.skill_loader import SkillLoader
 
@@ -30,11 +29,10 @@ BUILTIN_RESEARCHER_MAP = {
     "web": DDGSearchResearcher,
     "hackernews": HNResearcher,
     "github": GitHubResearcher,
-    "reddit": RedditResearcher,
     "rss": RSSResearcher,
 }
 
-_ENGLISH_PLATFORMS: frozenset[str] = frozenset({"hackernews", "github", "reddit"})
+_ENGLISH_PLATFORMS: frozenset[str] = frozenset({"hackernews", "github"})
 
 _DOMAIN_TRANSLATION_CACHE: dict[str, str] = {}
 
