@@ -46,7 +46,6 @@ class PainPointOut(BaseModel):
 
 class PainScoreBreakdown(BaseModel):
     emotion_intensity: float
-    discussion_volume: float
     repeat_frequency: float
     involves_money: float
     has_paid_solution: float

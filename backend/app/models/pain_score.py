@@ -9,7 +9,6 @@ class PainScore(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     pain_point_id = Column(Integer, ForeignKey("pain_points.id"), nullable=False, unique=True)
     emotion_intensity = Column(Float, default=0.0)
-    discussion_volume = Column("comment_volume", Float, default=0.0)
     repeat_frequency = Column(Float, default=0.0)
     involves_money = Column(Float, default=0.0)
     has_paid_solution = Column(Float, default=0.0)

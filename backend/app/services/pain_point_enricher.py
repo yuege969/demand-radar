@@ -56,7 +56,6 @@ ENRICHMENT_PROMPT = """你是一个市场需求分析专家。请分析下面这
   }},
   "dimension_scores": {{
     "emotion_intensity": 0到10的整数,
-    "comment_volume": 0到10的整数,
     "repeat_frequency": 0到10的整数,
     "involves_money": 0到10的整数,
     "has_paid_solution": 0到10的整数,
@@ -69,7 +68,6 @@ ENRICHMENT_PROMPT = """你是一个市场需求分析专家。请分析下面这
 
 评分指南：
 - emotion_intensity: 用户情绪的强烈程度，越愤怒/焦虑越高
-- comment_volume: 讨论的热度，讨论的人越多越高
 - repeat_frequency: 该需求在不同来源中重复出现的频率
 - involves_money: 用户是否涉及金钱/付费意愿
 - has_paid_solution: 市场上已有付费方案的程度

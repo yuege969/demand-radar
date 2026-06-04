@@ -72,7 +72,6 @@ def _map_dimensions(pp: dict) -> dict:
     wtp = WTP_MAP.get(pp.get("willingness_to_pay", "none"), 0)
     return {
         "emotion_intensity": 5,
-        "discussion_volume": 5,
         "repeat_frequency": freq,
         "involves_money": wtp,
         "has_paid_solution": 5,
@@ -224,7 +223,6 @@ def _create_pain_point(db, pp_data: dict, job_id: int, domain: str) -> None:
     ps = PainScore(
         pain_point_id=pp.id,
         emotion_intensity=dims["emotion_intensity"],
-        discussion_volume=dims["discussion_volume"],
         repeat_frequency=dims["repeat_frequency"],
         involves_money=dims["involves_money"],
         has_paid_solution=dims["has_paid_solution"],
@@ -390,7 +388,7 @@ async def _enrich_pain_points(job_id: int) -> int:
                 ps = db.query(PainScore).filter(PainScore.pain_point_id == pp.id).first()
                 if ps:
                     ps.emotion_intensity = float(scores.get("emotion_intensity", ps.emotion_intensity))
-                    ps.discussion_volume = float(scores.get("comment_volume", ps.discussion_volume))
+                    # discussion_volume removed — not meaningful from web search data
                     ps.repeat_frequency = float(scores.get("repeat_frequency", ps.repeat_frequency))
                     ps.involves_money = float(scores.get("involves_money", ps.involves_money))
                     ps.has_paid_solution = float(scores.get("has_paid_solution", ps.has_paid_solution))
@@ -399,7 +397,6 @@ async def _enrich_pain_points(job_id: int) -> int:
 
                     dims = {
                         "emotion_intensity": ps.emotion_intensity,
-                        "discussion_volume": ps.discussion_volume,
                         "repeat_frequency": ps.repeat_frequency,
                         "involves_money": ps.involves_money,
                         "has_paid_solution": ps.has_paid_solution,

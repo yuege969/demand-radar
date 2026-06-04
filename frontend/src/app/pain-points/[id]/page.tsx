@@ -147,10 +147,9 @@ export default function PainPointDetailPage() {
   const breakdown = data.score_breakdown;
   const dimensions = breakdown
     ? [
-        { key: "emotion_intensity", label: "情绪强度", w: 0.2 },
-        { key: "comment_volume", label: "讨论热度", w: 0.15 },
-        { key: "repeat_frequency", label: "重复频率", w: 0.2 },
-        { key: "involves_money", label: "付费意愿", w: 0.2 },
+        { key: "emotion_intensity", label: "情绪强度", w: 0.25 },
+        { key: "repeat_frequency", label: "重复频率", w: 0.25 },
+        { key: "involves_money", label: "付费意愿", w: 0.25 },
         { key: "has_paid_solution", label: "已有方案", w: 0.1 },
         { key: "automation_difficulty", label: "实现难度", w: 0.1 },
         { key: "is_long_term", label: "长期需求", w: 0.05 },

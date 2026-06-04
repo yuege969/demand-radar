@@ -146,7 +146,6 @@ export interface SoloFeasibility {
 
 export interface PainScoreBreakdown {
   emotion_intensity: number;
-  discussion_volume: number;
   repeat_frequency: number;
   involves_money: number;
   has_paid_solution: number;
